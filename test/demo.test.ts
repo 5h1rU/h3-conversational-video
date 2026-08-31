@@ -2,14 +2,39 @@ import { describe, expect, it } from "vitest";
 import { demoHtml } from "../src/demo";
 
 describe("session viewer", () => {
-  it("restores an existing session and plays its generated branch", () => {
+  it("restores a session with an identity-stable double-buffered player", () => {
     expect(demoHtml).toContain("location.pathname.split('/')");
-    expect(demoHtml).toContain("state.branchPhase==='ready'");
+    expect(demoHtml).toContain("branchPhase=state.branchPhase");
     expect(demoHtml).toContain("clip.source==='branch'");
-    expect(demoHtml).toContain('<video id="generated-video" controls muted');
+    expect(demoHtml).toContain('<video id="program-video-a" preload="auto"');
+    expect(demoHtml).toContain('<video id="program-video-b" preload="auto"');
+    expect(demoHtml).toContain("video===activeVideo");
     expect(demoHtml).toContain("addEventListener('ended'");
-    expect(demoHtml).toContain("clipId===currentClipId");
+    expect(demoHtml).toContain("shouldAdvanceFromEnded");
     expect(demoHtml).not.toContain("setInterval(()=>{cursor++");
     expect(demoHtml).not.toContain("innerHTML=clip.title");
+  });
+
+  it("buffers the full canonical set and paints standby before handoff", () => {
+    expect(demoHtml).toContain(
+      "await Promise.all(canonicalUrls.map(bufferUrl))",
+    );
+    expect(demoHtml).toContain("await video.play()}");
+    expect(demoHtml).toContain(
+      "requestAnimationFrame(()=>requestAnimationFrame(resolve))",
+    );
+    expect(demoHtml).toContain("video.muted=true");
+    expect(demoHtml).toContain("await ensureStandby(clip)");
+    expect(demoHtml).toContain("canCommitMediaHandoff");
+    expect(demoHtml).toContain("requestAnimationFrame(()=>{");
+    expect(demoHtml).toContain("previous.className='standby'");
+    expect(demoHtml).not.toContain("previous.removeAttribute('src')");
+  });
+
+  it("falls back past media errors without polling teardown", () => {
+    expect(demoHtml).toContain("unavailableClipIds.add(clip.id)");
+    expect(demoHtml).toContain("selectNextPlayableClipId");
+    expect(demoHtml).toContain("if(started&&selected!==currentClipId)");
+    expect(demoHtml).not.toContain("video.src=clip.mediaUrl");
   });
 });

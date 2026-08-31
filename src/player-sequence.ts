@@ -3,6 +3,55 @@ export interface SequencedClip {
   readonly source: "canonical" | "branch" | "reentry";
 }
 
+export interface BufferedClip extends SequencedClip {
+  readonly mediaUrl: string;
+}
+
+export interface MediaSlotState {
+  readonly clipId: string | null;
+  readonly status: "empty" | "loading" | "ready" | "active" | "error";
+}
+
+export function canonicalPreloadUrls(
+  entries: ReadonlyArray<BufferedClip>,
+): ReadonlyArray<string> {
+  return [
+    ...new Set(
+      entries
+        .filter(
+          (entry) =>
+            entry.source === "canonical" && entry.mediaUrl.includes("/media/"),
+        )
+        .map((entry) => entry.mediaUrl),
+    ),
+  ];
+}
+
+export function canCommitMediaHandoff(
+  active: MediaSlotState,
+  standby: MediaSlotState,
+  targetClipId: string,
+): boolean {
+  return (
+    active.status === "active" &&
+    standby.status === "ready" &&
+    standby.clipId === targetClipId &&
+    active.clipId !== targetClipId
+  );
+}
+
+export function shouldAdvanceFromEnded(
+  activeClipId: string | null,
+  eventClipId: string | null,
+  transitionInProgress: boolean,
+): boolean {
+  return (
+    !transitionInProgress &&
+    activeClipId !== null &&
+    activeClipId === eventClipId
+  );
+}
+
 export function selectRefreshClipId(
   entries: ReadonlyArray<SequencedClip>,
   currentClipId: string | null,
@@ -35,4 +84,23 @@ export function selectNextClipId(
     if (pendingBranch) return pendingBranch.id;
   }
   return entries[(currentIndex + 1) % entries.length]?.id ?? null;
+}
+
+export function selectNextPlayableClipId(
+  entries: ReadonlyArray<SequencedClip>,
+  currentClipId: string,
+  completedBranchIds: ReadonlySet<string>,
+  unavailableClipIds: ReadonlySet<string>,
+): string | null {
+  const completed = new Set(completedBranchIds);
+  let cursor = currentClipId;
+  for (let attempt = 0; attempt < entries.length; attempt += 1) {
+    const candidate = selectNextClipId(entries, cursor, completed);
+    if (!candidate) return null;
+    if (!unavailableClipIds.has(candidate)) return candidate;
+    const entry = entries.find((item) => item.id === candidate);
+    if (entry?.source === "branch") completed.add(candidate);
+    cursor = candidate;
+  }
+  return null;
 }

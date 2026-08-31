@@ -53,6 +53,7 @@ curl -sS http://localhost:8787/v1/sessions/SESSION_ID/playlist
 - R2 keys are content addressed: `artifacts/sha256/<digest>/clip.<ext>` and `artifacts/sha256/<digest>/manifest.v1.json`. A playlist can reference only the artifact after checksum, type, size, read-after-write, and manifest commit checks pass.
 - D1 records sessions, viewer events, provider attempts, webhook claims, generation state, and the cost-ledger boundary. It does not own session ordering.
 - The player consumes a replaceable committed clip queue. Dynamic HLS/CMAF is the target adapter after codec/timestamp continuity is proven.
+- The browser fetches the complete session-authorized canonical media set before starting, converts those responses to local object URLs, and uses two layered video elements. The standby clip is loaded and decoded beneath the active clip; an atomic frame-boundary layer swap preserves the prior rendered frame until the next clip is playing. Playlist polling never replaces the active element.
 - The prompt compiler is pure and deterministic. Character, world, session, and shot contexts are explicit; fal.ai receives one resolved specification and has no tools or orchestration authority. Canonical media is stored once in R2 and cataloged in D1, then projected into each session with session-bound media URLs.
 - The current slice does not make an LLM call, so AI Gateway is not invoked. A future planning/intent layer belongs behind an Effect service and should use AI Gateway without changing the provider or session-ordering contracts.
 
@@ -134,7 +135,7 @@ The current prototype deployment was validated on 2026-08-31 with remote session
 
 ## Correctness and degradation
 
-Tests cover deterministic canonical planning, the exact 480P image-to-video request, continuity-asset `HEAD`/`GET`, canonical reuse, atomic branch-package ordering, single-branch enforcement, duplicate viewer event/queue/webhook handling, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, player identity stability across polling, and playlist revision changes. Provider failure or deadline expiry marks the branch failed without changing playlist revision, so canonical playback continues.
+Tests cover deterministic canonical planning, the exact 480P image-to-video request, continuity-asset `HEAD`/`GET`, canonical reuse, atomic branch-package ordering, single-branch enforcement, duplicate viewer event/queue/webhook handling, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, full canonical preloading, standby readiness, double-buffer handoff, player identity stability across polling, media-error continuation, and playlist revision changes. Provider failure or deadline expiry marks the branch failed without changing playlist revision, so canonical playback continues.
 
 The simulator uses SVG visual fixtures, not production video. Before replacing it with HLS, run the media proof described in the product document: consecutive MP4 codec/profile/timestamp inspection, first/last-frame continuity, audio normalization, and Safari/iOS plus Chrome/Android playback validation.
 

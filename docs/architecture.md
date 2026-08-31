@@ -70,7 +70,9 @@ idle -> planned -> generating -> ready -> idle (after rejoin position)
                   +-> failed -> planned
 ```
 
-Planning chooses the first US Open clip as the semantic rejoin anchor before dispatch. `planned` and `generating` block a second branch. The cost-first branch may encode ingress, answer, and egress as beats in one five-second artifact; publication inserts that ordered package once before the anchor. `ready` remains active until playback passes the rejoin anchor. A failed branch never changes `playlistRevision`; a committed branch changes it exactly once. The browser advances media only on `ended` and reconciles polling updates by immutable clip identity, so rerenders cannot restart or oscillate the active clip.
+Planning chooses the first US Open clip as the semantic rejoin anchor before dispatch. `planned` and `generating` block a second branch. The cost-first branch may encode ingress, answer, and egress as beats in one five-second artifact; publication inserts that ordered package once before the anchor. `ready` remains active until playback passes the rejoin anchor. A failed branch never changes `playlistRevision`; a committed branch changes it exactly once.
+
+The browser advances only on the active element's identity-checked `ended` event. It fully fetches the session-authorized canonical set into local object URLs before playback and keeps two layered video elements: the active element retains its last frame while the standby element loads, decodes, and begins playback beneath it. A single animation-frame layer swap performs the handoff; only afterward may the old element become the next standby. Polling can preload a newly committed branch and change the desired next identity, but it cannot mutate or replace the active element. If branch media cannot load, the sequencing reducer marks that clip unavailable and continues through re-entry to canonical content without replay.
 
 ## Artifact commit boundary
 
