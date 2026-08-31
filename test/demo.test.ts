@@ -7,6 +7,9 @@ describe("session viewer", () => {
     expect(demoHtml).toContain("state.branchPhase==='ready'");
     expect(demoHtml).toContain("clip.source==='branch'");
     expect(demoHtml).toContain('<video id="generated-video" controls muted');
+    expect(demoHtml).toContain("addEventListener('ended'");
+    expect(demoHtml).toContain("clipId===currentClipId");
+    expect(demoHtml).not.toContain("setInterval(()=>{cursor++");
     expect(demoHtml).not.toContain("innerHTML=clip.title");
   });
 });
