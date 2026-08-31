@@ -32,6 +32,8 @@ Queue delivery and provider completion may happen more than once or out of order
 
 `src/services.ts` contains contracts and tagged errors. `src/layers.ts` contains live adapter layers. `src/use-cases/` contains named orchestration. `src/domain.ts` is the single schema and branded-ID boundary. `src/index.ts` and `src/session-do.ts` are delivery adapters/public facade.
 
+`src/fal-provider.ts` is the replaceable provider request boundary. Its schema-checked `h3-max-cost-first/1` profile compiles a deterministic generation plan into exactly five seconds, `480P`, balanced prompt expansion, `16:9`, and safety checking. Sync/base64 response modes are intentionally absent so live work stays on the asynchronous queue/webhook path. Pricing is deliberately not part of this runtime contract because fal rates are volatile and must be checked before paid tests.
+
 ## Intentionally not abstracted
 
 - Durable Object constructor/migration, SQLite `transactionSync`, alarms, RPC, and WebSocket Hibernation remain native. Generic repositories must not weaken the one-writer guarantee.

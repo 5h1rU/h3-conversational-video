@@ -62,11 +62,13 @@ Effect owns schema-derived domain contracts, branded identifiers, tagged errors,
 
 The repository follows the installed upstream Effect skill and `node_modules/effect/AGENTS.md`. That official skill explicitly prescribes the `effect@rc` channel. On 2026-08-31 npm reported `effect@latest` as `3.22.1` and `effect@rc` as `4.0.0-rc.112`; this project pins `4.0.0-rc.112` exactly because the user required faithful use of that official skill. This is the only intentional non-stable-channel dependency.
 
-All direct packages were checked against current npm metadata and are pinned exactly in `package-lock.json`. TypeScript `6.0.3` is the newest stable release compatible with the latest `typescript-eslint@8.68.0`, whose peer range is `<6.1.0`; TypeScript `7.0.2` is therefore intentionally not used until that current lint toolchain declares compatibility.
+All direct packages were checked against current npm metadata and are pinned exactly in `package-lock.json`. TypeScript `6.0.3` is the newest stable release compatible with the latest `typescript-eslint@8.69.0`, whose peer range is `<6.1.0`; TypeScript `7.0.2` is therefore intentionally not used until that current lint toolchain declares compatibility.
 
 ## fal.ai mode
 
-The current official H3 Max endpoint is `minimax/h3-max/text-to-video`. The adapter submits five-second, 768P, 16:9 jobs with the model safety checker enabled and a deterministic seed.
+The current official H3 Max endpoint is `minimax/h3-max/text-to-video`. Every live request uses the explicit versioned policy `h3-max-cost-first/1`: five-second duration, `480P` resolution, `balanced` prompt expansion, `16:9` aspect ratio, safety checker enabled, a deterministic seed, and asynchronous queue mode. The adapter omits sync/base64 response fields. `src/fal-provider.ts` owns this typed provider request contract so fal defaults cannot silently move the prototype back to `768P`.
+
+Pricing is checked at request time rather than encoded in runtime policy. As a time-sensitive snapshot only, the official model page on 2026-08-31 listed promotional rates of $0.025 per output second at `480P` and $0.04 per output second at `768P`, stated that the promotion ended September 1, and stated that those rates would then double. Verify the current official model page immediately before adding credits or running a paid test.
 
 The deployed configuration already has `PROVIDER_MODE: "fal"`, the production Worker URL, and `FAL_KEY` declared as a required secret. For a new Worker/account:
 

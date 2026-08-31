@@ -27,6 +27,7 @@ import {
   StaleGenerationError,
   StorageError,
 } from "./services";
+import { compileFalH3MaxRequest } from "./fal-provider";
 import type { SessionDurableObject } from "./session-do";
 
 const decodeSessionState = Schema.decodeUnknownSync(SessionState);
@@ -538,15 +539,7 @@ export function generationProviderLive(
                 Authorization: `Key ${config.falKey}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                prompt: job.plan.resolvedPrompt,
-                duration: 5,
-                resolution: "768P",
-                seed: job.plan.seed,
-                enable_safety_checker: true,
-                prompt_expansion_mode: "balanced",
-                aspect_ratio: "16:9",
-              }),
+              body: JSON.stringify(compileFalH3MaxRequest(job.plan)),
             });
             if (!response.ok) {
               const failure = classifyFalSubmissionFailure(response.status);
