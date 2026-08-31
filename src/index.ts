@@ -31,6 +31,17 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
+  const viewerMatch = url.pathname.match(
+    /^\/s\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i,
+  );
+  if (request.method === "GET" && viewerMatch) {
+    return new Response(demoHtml, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
   const fixtureMatch = url.pathname.match(
     /^\/v1\/fixtures\/(\d+|reentry)\.svg$/,
   );
