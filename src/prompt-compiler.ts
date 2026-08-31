@@ -59,9 +59,9 @@ export function compileGenerationPlan(input: {
     `[WORLD] ${world.set} ${world.cameraGrammar} ${world.visualDisclosure}`,
     `[SESSION] Viewer-now=${session.currentAnchor}; branch-start=${session.branchStartAnchor}; rejoin=${session.rejoinAnchor}; viewer=${session.question}`,
     `[SHOT] ${shot.dialogue} ${shot.framing} ${shot.motion} ${shot.audio} End: ${shot.terminalState}`,
-    "[TIMING] Ingress 0.0-1.0s; direct answer 1.0-3.8s; egress and exact pose restoration 3.8-5.0s. One continuous locked two-shot, no cut or camera move.",
+    "[TIMING] Ingress 0.0-2.0s; direct answer 2.0-12.0s; egress and exact pose restoration 12.0-15.0s. One continuous locked two-shot, no cut or camera move. Use the answer window for two or three natural sentences, not rushed delivery.",
     "[CONTINUITY] The supplied first image is the exact outgoing Messi-context frame. The supplied last image is the exact incoming US Open keyframe. Preserve faces, wardrobe, studio, voices, room tone, camera axis, exposure, and color grade between them.",
-    "Five seconds, 16:9, coherent audiovisual output, safety checker enabled.",
+    "Fifteen seconds, 16:9, coherent audiovisual output, safety checker enabled.",
   ].join("\n");
 
   const bridgeKeyframe = new URL(
@@ -70,10 +70,10 @@ export function compileGenerationPlan(input: {
   );
 
   return new GenerationPlan({
-    compilerVersion: "h3-compiler/2",
+    compilerVersion: "h3-compiler/3",
     clipId: input.clipId,
     branchId: input.branchId,
-    durationSeconds: 5,
+    durationSeconds: 15,
     seed: deterministicSeed(
       `${input.branchId}:${input.question}:${input.rejoinAnchor}`,
     ),

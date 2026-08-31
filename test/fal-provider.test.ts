@@ -9,6 +9,7 @@ import {
   StateVersion,
 } from "../src/domain";
 import {
+  FAL_H3_MAX_CONVERSATIONAL_BRANCH_PROFILE_V2,
   FAL_H3_MAX_COST_FIRST_PROFILE_V1,
   compileFalH3MaxRequest,
 } from "../src/fal-provider";
@@ -74,13 +75,22 @@ describe("fal H3 Max cost-first request", () => {
       safetyCheckerEnabled: true,
       syncModeEnabled: false,
     });
+    expect(FAL_H3_MAX_CONVERSATIONAL_BRANCH_PROFILE_V2).toEqual({
+      version: "h3-max-conversational-branch/2",
+      durationSeconds: 15,
+      resolution: "480P",
+      promptExpansionMode: "balanced",
+      aspectRatio: "16:9",
+      safetyCheckerEnabled: true,
+      syncModeEnabled: false,
+    });
   });
 
   it("serializes the exact live provider body without sync or base64 output", async () => {
     const job = generationJob();
     const expectedBody = {
       prompt: job.plan.resolvedPrompt,
-      duration: 5,
+      duration: 15,
       resolution: "480P",
       seed: job.plan.seed,
       enable_safety_checker: true,
@@ -176,6 +186,7 @@ describe("fal H3 Max cost-first request", () => {
           branchId: job.branchId,
           providerRequestId: "fal-request-cost-profile",
           promptCompilerVersion: job.plan.compilerVersion,
+          durationMs: 15_000,
         });
       }).pipe(Effect.provide(generationProviderLive(config))),
     );
@@ -218,6 +229,7 @@ describe("fal H3 Max cost-first request", () => {
             branchId: job.branchId,
             providerRequestId: "fal-request-cost-profile",
             promptCompilerVersion: job.plan.compilerVersion,
+            durationMs: 15_000,
           });
         }).pipe(Effect.provide(generationProviderLive(config))),
       ),

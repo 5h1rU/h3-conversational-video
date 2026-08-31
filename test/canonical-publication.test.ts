@@ -22,7 +22,8 @@ beforeEach(async () => {
       id TEXT PRIMARY KEY, idempotency_key TEXT NOT NULL UNIQUE, session_id TEXT NOT NULL,
       branch_id TEXT NOT NULL, clip_id TEXT NOT NULL, desired_ordinal INTEGER NOT NULL,
       state_version INTEGER NOT NULL, status TEXT NOT NULL, provider TEXT NOT NULL,
-      provider_request_id TEXT UNIQUE, prompt_compiler_version TEXT NOT NULL, artifact_id TEXT,
+      provider_request_id TEXT UNIQUE, prompt_compiler_version TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL DEFAULT 5000, artifact_id TEXT,
       error_code TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS canonical_episodes (

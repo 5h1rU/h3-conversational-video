@@ -38,7 +38,8 @@ describe("deterministic generation plan compiler", () => {
     expect(first.world.show).toBe("The Signal Room");
     expect(first.session.rejoinAnchor).toBe("anchor-007");
     expect(first.session.branchStartAnchor).toBe("anchor-001");
-    expect(first.compilerVersion).toBe("h3-compiler/2");
+    expect(first.compilerVersion).toBe("h3-compiler/3");
+    expect(first.durationSeconds).toBe(15);
     expect(first.continuityStartImageUrl?.href).toBe(
       "https://prototype.example/v1/canonical/assets/messi-context-end.png",
     );
@@ -52,5 +53,6 @@ describe("deterministic generation plan compiler", () => {
     expect(first.resolvedPrompt).toContain("[ANSWER]");
     expect(first.resolvedPrompt).toContain("[EGRESS]");
     expect(first.resolvedPrompt).toContain("exact pose restoration");
+    expect(first.resolvedPrompt).toContain("2.0-12.0s");
   });
 });

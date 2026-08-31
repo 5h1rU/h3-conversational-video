@@ -11,6 +11,7 @@ import {
   type ClipQueueEntry,
   SessionState,
   decodeSessionState as decodeRpcSessionState,
+  MediaDurationMs,
 } from "./domain";
 import {
   AppConfig,
@@ -35,6 +36,17 @@ import type { SessionDurableObject } from "./session-do";
 
 const decodeSessionState = Schema.decodeUnknownSync(SessionState);
 const decodeArtifactId = Schema.decodeUnknownSync(ArtifactId);
+const BranchPackageManifest = Schema.Struct({
+  version: Schema.Literal("branch-package/1"),
+  entries: Schema.Array(
+    Schema.Struct({
+      artifactId: ArtifactId,
+      beatKinds: Schema.Array(Schema.Literals(["ingress", "answer", "egress"])),
+      durationMs: Schema.optional(MediaDurationMs),
+    }),
+  ),
+  rejoinAnchor: Schema.NullOr(Schema.String),
+});
 
 function storageError(operation: string, cause: unknown): StorageError {
   return new StorageError({ operation, message: String(cause) });
@@ -302,6 +314,7 @@ export function sessionRepositoryLive(
                     {
                       artifactId: input.artifact.artifactId,
                       beatKinds: ["ingress", "answer", "egress"],
+                      durationMs: input.artifact.durationMs,
                     },
                   ],
                   rejoinAnchor: state.rejoinAnchor,
@@ -382,13 +395,25 @@ export function sessionRepositoryLive(
             const rejoinIndex = Number(state.rejoinAnchor.slice(-3));
             const before = canonical.slice(0, currentIndex + 1);
             const after = canonical.slice(rejoinIndex);
+            const packageRow = ctx.storage.sql
+              .exec<{ package_json: string }>(
+                "SELECT package_json FROM branch_packages WHERE branch_id = ?",
+                state.branchId,
+              )
+              .toArray()[0];
+            const branchPackage = packageRow
+              ? Schema.decodeUnknownSync(BranchPackageManifest)(
+                  JSON.parse(packageRow.package_json),
+                )
+              : null;
             const branch: ClipQueueEntry = {
               ordinal: currentIndex * 10 + 1,
               id: `branch-${state.branchId}`,
               source: "branch",
               title: state.branchQuestion ?? "Viewer question",
               speaker: "Mara Vale",
-              durationMs: CLIP_DURATION_MS,
+              durationMs:
+                branchPackage?.entries[0]?.durationMs ?? CLIP_DURATION_MS,
               mediaUrl: `/v1/sessions/${state.sessionId}/media/${state.branchArtifactId}`,
               anchor: state.canonicalPlayheadAnchor,
               committed: true,
@@ -404,13 +429,7 @@ export function sessionRepositoryLive(
               anchor: state.rejoinAnchor,
               committed: true,
             };
-            const packageRow = ctx.storage.sql
-              .exec<{ package_json: string }>(
-                "SELECT package_json FROM branch_packages WHERE branch_id = ?",
-                state.branchId,
-              )
-              .toArray()[0];
-            return packageRow
+            return branchPackage
               ? [...before, branch, ...after]
               : [...before, branch, reentry, ...after];
           },
@@ -514,7 +533,7 @@ export function artifactStoreLive(
       validateAndCommit: (input) =>
         Effect.tryPromise({
           try: async () => {
-            if (input.durationMs !== 5_000 || input.body.byteLength < 64) {
+            if (input.body.byteLength < 64) {
               throw new ArtifactValidationError({
                 message: "Artifact failed duration or size validation",
               });
@@ -567,7 +586,7 @@ export function artifactStoreLive(
               manifestKey,
               contentType: input.contentType,
               size: input.body.byteLength,
-              durationMs: 5_000,
+              durationMs: input.durationMs,
             };
             if (!(await bucket.head(manifestKey))) {
               await bucket.put(
@@ -606,7 +625,7 @@ export function artifactStoreLive(
                 manifestKey: Schema.NonEmptyString,
                 contentType: Schema.NonEmptyString,
                 size: Schema.Int,
-                durationMs: Schema.Literal(5_000),
+                durationMs: MediaDurationMs,
               }),
             )(await object.json());
             if (
@@ -677,7 +696,7 @@ export function generationProviderLive(
                   branchId: job.branchId,
                   body,
                   contentType: "image/svg+xml" as const,
-                  durationMs: 5_000 as const,
+                  durationMs: job.plan.durationSeconds === 15 ? 15_000 : 5_000,
                   providerRequestId: requestId,
                   promptCompilerVersion: job.plan.compilerVersion,
                 },
@@ -769,7 +788,7 @@ export function generationProviderLive(
               branchId: input.branchId,
               body,
               contentType: "video/mp4" as const,
-              durationMs: 5_000 as const,
+              durationMs: input.durationMs,
               providerRequestId: input.providerRequestId,
               promptCompilerVersion: input.promptCompilerVersion,
             };
@@ -1019,8 +1038,8 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
           const result = await db
             .prepare(
               `INSERT OR IGNORE INTO generation_jobs
-               (id, idempotency_key, session_id, branch_id, clip_id, desired_ordinal, state_version, status, provider, prompt_compiler_version, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'QUEUED', ?, ?, ?, ?)`,
+               (id, idempotency_key, session_id, branch_id, clip_id, desired_ordinal, state_version, status, provider, prompt_compiler_version, duration_ms, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?)`,
             )
             .bind(
               job.jobId,
@@ -1032,6 +1051,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
               job.stateVersion,
               provider,
               job.plan.compilerVersion,
+              job.plan.durationSeconds * 1_000,
               at,
               at,
             )
@@ -1064,7 +1084,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
         run("audit.findJobByProviderRequest", async () => {
           const row = await db
             .prepare(
-              "SELECT id, session_id, branch_id, clip_id, state_version, prompt_compiler_version FROM generation_jobs WHERE provider_request_id = ?",
+              "SELECT id, session_id, branch_id, clip_id, state_version, prompt_compiler_version, duration_ms FROM generation_jobs WHERE provider_request_id = ?",
             )
             .bind(requestId)
             .first<{
@@ -1074,7 +1094,11 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
               clip_id: string;
               state_version: number;
               prompt_compiler_version:
-                "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
+                | "h3-compiler/1"
+                | "h3-compiler/2"
+                | "h3-compiler/3"
+                | "h3-sports-compiler/1";
+              duration_ms: number;
             }>();
           if (!row) return null;
           return Schema.decodeUnknownSync(
@@ -1087,8 +1111,10 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
               promptCompilerVersion: Schema.Literals([
                 "h3-compiler/1",
                 "h3-compiler/2",
+                "h3-compiler/3",
                 "h3-sports-compiler/1",
               ]),
+              durationMs: MediaDurationMs,
             }),
           )({
             jobId: row.id,
@@ -1097,6 +1123,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
             clipId: row.clip_id,
             stateVersion: row.state_version,
             promptCompilerVersion: row.prompt_compiler_version,
+            durationMs: row.duration_ms,
           });
         }),
       markCompleted: (jobId, artifactId, at) =>

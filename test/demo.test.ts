@@ -37,4 +37,15 @@ describe("session viewer", () => {
     expect(demoHtml).toContain("if(started&&selected!==currentClipId)");
     expect(demoHtml).not.toContain("video.src=clip.mediaUrl");
   });
+
+  it("uses a microphone-first question flow with explicit paid-generation confirmation", () => {
+    expect(demoHtml).toContain('id="mic"');
+    expect(demoHtml).toContain("window.SpeechRecognition");
+    expect(demoHtml).toContain("window.webkitSpeechRecognition");
+    expect(demoHtml).toContain("interimResults=true");
+    expect(demoHtml).toContain("Microphone permission was not granted");
+    expect(demoHtml).toContain("may use fal.ai credits");
+    expect(demoHtml).toContain("send.disabled=true");
+    expect(demoHtml).toContain("input.readOnly=false");
+  });
 });

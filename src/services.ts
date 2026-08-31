@@ -9,6 +9,7 @@ import type {
   CompletedCanonicalBuild,
   EventId,
   GenerationPlan,
+  MediaDurationMs,
   CanonicalCatalogClip,
   SessionId,
   SessionState,
@@ -84,10 +85,13 @@ export interface ArtifactCommitInput {
   readonly branchId: BranchId;
   readonly body: Uint8Array;
   readonly contentType: "video/mp4" | "image/svg+xml";
-  readonly durationMs: 5_000;
+  readonly durationMs: MediaDurationMs;
   readonly providerRequestId: string;
   readonly promptCompilerVersion:
-    "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
+    | "h3-compiler/1"
+    | "h3-compiler/2"
+    | "h3-compiler/3"
+    | "h3-sports-compiler/1";
 }
 
 export interface CommittedArtifact {
@@ -96,7 +100,7 @@ export interface CommittedArtifact {
   readonly manifestKey: string;
   readonly contentType: string;
   readonly size: number;
-  readonly durationMs: 5_000;
+  readonly durationMs: MediaDurationMs;
 }
 
 export type ProviderSubmission =
@@ -164,7 +168,11 @@ export class GenerationProvider extends Context.Service<
       readonly branchId: BranchId;
       readonly providerRequestId: string;
       readonly promptCompilerVersion:
-        "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
+        | "h3-compiler/1"
+        | "h3-compiler/2"
+        | "h3-compiler/3"
+        | "h3-sports-compiler/1";
+      readonly durationMs: MediaDurationMs;
     }): Effect.Effect<ArtifactCommitInput, ProviderError>;
   }
 >()("h3/services/GenerationProvider") {}
@@ -240,7 +248,11 @@ export class AuditLedger extends Context.Service<
         readonly clipId: ClipId;
         readonly stateVersion: StateVersion;
         readonly promptCompilerVersion:
-          "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
+          | "h3-compiler/1"
+          | "h3-compiler/2"
+          | "h3-compiler/3"
+          | "h3-sports-compiler/1";
+        readonly durationMs: MediaDurationMs;
       } | null,
       StorageError
     >;

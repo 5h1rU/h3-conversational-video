@@ -59,7 +59,7 @@ describe("Session Durable Object ordering authority", () => {
       manifestKey: `artifacts/sha256/${"f".repeat(64)}/manifest.v1.json`,
       contentType: "video/mp4",
       size: 1024,
-      durationMs: 5_000 as const,
+      durationMs: 15_000 as const,
     };
     await stub.markGenerating(decodedBranchId);
     await stub.publishBranch(decodedBranchId, artifact);
@@ -80,6 +80,7 @@ describe("Session Durable Object ordering authority", () => {
       "canonical",
       "canonical",
     ]);
+    expect(playlist.entries[2]?.durationMs).toBe(15_000);
     expect(
       await stub.ownsArtifact(
         canonicalEntries[0]!.mediaUrl.split("/media/")[1]!,
@@ -99,6 +100,7 @@ describe("Session Durable Object ordering authority", () => {
           entries: [
             {
               beatKinds: ["ingress", "answer", "egress"],
+              durationMs: 15_000,
             },
           ],
           rejoinAnchor: "anchor-002",
@@ -120,7 +122,7 @@ describe("Session Durable Object ordering authority", () => {
     expect(accepted.state.branchPhase).toBe("planned");
     expect(accepted.state.playlistRevision).toBe(1);
     expect(accepted.state.deadlineAt).not.toBeNull();
-    expect(BRANCH_GENERATION_DEADLINE_MS).toBe(25_000);
+    expect(BRANCH_GENERATION_DEADLINE_MS).toBe(120_000);
 
     const duplicate = await stub.acceptEvent(event("event-ordering-0001"));
     expect(duplicate.duplicate).toBe(true);
