@@ -177,3 +177,7 @@ export function continuityAssetPath(slot: SportsCanonicalSlot): string {
   } as const;
   return `/v1/canonical/assets/${preceding[slot]}`;
 }
+
+export function continuityAssetKey(slot: SportsCanonicalSlot): string {
+  return `canonical/${SPORTS_EPISODE_ID}/continuity/${continuityAssetPath(slot).split("/").at(-1)}`;
+}

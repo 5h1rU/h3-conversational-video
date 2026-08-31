@@ -140,6 +140,7 @@ describe("provider result ingestion", () => {
       Layer.succeed(
         ArtifactStore,
         ArtifactStore.of({
+          inspectCommitted: () => Effect.die("unused"),
           validateAndCommit: () =>
             Effect.sync(() => {
               recorded.push("r2:committed");
@@ -197,6 +198,7 @@ describe("provider result ingestion", () => {
       Layer.succeed(
         ArtifactStore,
         ArtifactStore.of({
+          inspectCommitted: () => Effect.die("unused"),
           validateAndCommit: () => Effect.die("late result must not commit"),
         }),
       ),
@@ -254,6 +256,7 @@ describe("provider result ingestion", () => {
       Layer.succeed(
         ArtifactStore,
         ArtifactStore.of({
+          inspectCommitted: () => Effect.die("unused"),
           validateAndCommit: () => Effect.die("failed media must not commit"),
         }),
       ),

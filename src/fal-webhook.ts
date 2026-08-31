@@ -51,6 +51,33 @@ function ownedBuffer(value: Uint8Array): ArrayBuffer {
   return Uint8Array.from(value).buffer;
 }
 
+async function signatureMatchesJwks(
+  response: Response,
+  signature: Uint8Array,
+  message: Uint8Array,
+): Promise<boolean> {
+  const jwks = decodeJwks(await response.json());
+  for (const key of jwks.keys) {
+    const publicKey = await crypto.subtle.importKey(
+      "raw",
+      ownedBuffer(fromBase64Url(key.x)),
+      "Ed25519",
+      false,
+      ["verify"],
+    );
+    if (
+      await crypto.subtle.verify(
+        "Ed25519",
+        publicKey,
+        ownedBuffer(signature),
+        ownedBuffer(message),
+      )
+    )
+      return true;
+  }
+  return false;
+}
+
 export interface VerifiedFalWebhook {
   readonly requestId: string;
   readonly signatureTimestamp: number;
@@ -91,38 +118,28 @@ export const verifyFalWebhook = Effect.fn("verifyFalWebhook")(
         const cacheKey = new Request(
           "https://rest.fal.ai/.well-known/jwks.json",
         );
-        let response = await cache.match(cacheKey);
-        if (!response) {
-          response = await fetch(cacheKey);
-          if (!response.ok)
-            throw new Error(`fal JWKS request failed with ${response.status}`);
-          const cached = new Response(response.body, response);
-          cached.headers.set("Cache-Control", "public, max-age=3600");
-          await cache.put(cacheKey, cached);
-        }
-        const jwks = decodeJwks(await response.json());
-        for (const key of jwks.keys) {
-          const publicKey = await crypto.subtle.importKey(
-            "raw",
-            ownedBuffer(fromBase64Url(key.x)),
-            "Ed25519",
-            false,
-            ["verify"],
-          );
-          if (
-            await crypto.subtle.verify(
-              "Ed25519",
-              publicKey,
-              ownedBuffer(signature),
-              ownedBuffer(message),
-            )
-          ) {
-            return {
-              requestId,
-              signatureTimestamp: timestamp,
-            } satisfies VerifiedFalWebhook;
-          }
-        }
+        const cached = await cache.match(cacheKey);
+        if (cached && (await signatureMatchesJwks(cached, signature, message)))
+          return {
+            requestId,
+            signatureTimestamp: timestamp,
+          } satisfies VerifiedFalWebhook;
+
+        const fresh = await fetch(cacheKey);
+        if (!fresh.ok)
+          throw new Error(`fal JWKS request failed with ${fresh.status}`);
+        const cacheable = new Response(fresh.clone().body, {
+          status: fresh.status,
+          statusText: fresh.statusText,
+          headers: new Headers(fresh.headers),
+        });
+        cacheable.headers.set("Cache-Control", "public, max-age=3600");
+        await cache.put(cacheKey, cacheable);
+        if (await signatureMatchesJwks(fresh, signature, message))
+          return {
+            requestId,
+            signatureTimestamp: timestamp,
+          } satisfies VerifiedFalWebhook;
         throw new Error("Signature did not match any fal JWKS key");
       },
       catch: (cause) =>

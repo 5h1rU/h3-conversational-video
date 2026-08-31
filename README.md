@@ -2,9 +2,9 @@
 
 Live prototype: [h3-conversational-video-prototype.yo-617.workers.dev](https://h3-conversational-video-prototype.yo-617.workers.dev)
 
-This repository is a deployable Cloudflare prototype of the first interactive “Signal Room” show. Its target shared episode is a four-clip sports-news program: two Messi clips, then two US Open clips. During the Messi segment a viewer may create one private response package; that package owns its natural ingress, answer, and egress, then resumes exactly once at the first US Open clip. Only validated, committed media may enter the playlist, and failure falls back to uninterrupted canonical playback.
+This repository is a deployable Cloudflare prototype of the first interactive “Signal Room” show. Its published shared episode is a four-clip sports-news program: two Messi clips, then two US Open clips. During the Messi segment a viewer may create one private response package; that package owns its natural ingress, answer, and egress, then resumes exactly once at the first US Open clip. Only validated, committed media may enter the playlist, and failure falls back to uninterrupted canonical playback.
 
-The sports episode is published atomically only after all four canonical artifacts pass continuity review. Until then, new sessions retain the legacy fixture timeline; partial or rejected builds are never exposed as the shared program.
+The live sports episode was published atomically after all four real five-second `480P` artifacts passed audiovisual and endpoint-frame continuity review. New sessions reuse those immutable D1/R2 catalog artifacts; partial or rejected builds are never exposed as the shared program.
 
 The deployed prototype uses the real fal.ai H3 Max adapter. Automated tests and `wrangler.test.jsonc` remain cost-free through the deterministic fake provider. A live typed branch can incur fal.ai usage only after the account has credits; provider rejection falls back to canonical playback.
 
@@ -89,7 +89,7 @@ npx wrangler secret put FAL_KEY
 
 On 2026-08-31, one controlled live request against the zero-credit account was rejected before fal issued a provider request ID. D1 recorded `FAL_ACCOUNT_REJECTED`, no cost entry was created, the private branch became `failed`, and the revision-1 canonical playlist continued unchanged. Terminal 4xx account/payment/input rejections are acknowledged without provider resubmission; only transient 408/425/429/5xx submission failures are eligible for Queue retry.
 
-fal webhooks are verified before JSON parsing using the four official signature headers, a five-minute timestamp window, raw-body SHA-256, and Ed25519 public keys from fal’s JWKS. The signed request ID must match an expected D1 generation record. The explicit wire schema accepts fal’s JSON URL string and decodes it to an HTTPS `URL` on fal’s documented CDN only at the provider boundary; malformed or unsafe URL values receive a typed `422` response without logging the signed body or media URL. Webhook claims use `PROCESSING`, `RETRYABLE`, and `COMPLETED` states so transient ingestion failures can be redelivered without republishing completed work. fal media downloads use Workers' supported manual redirect mode and reject redirects before reading bytes. A result that arrives after the 25-second private-branch deadline is acknowledged and recorded as `FAL_RESULT_AFTER_DEADLINE`, but is not downloaded, committed to R2, or inserted into the timeline.
+fal webhooks are verified before JSON parsing using the four official signature headers, a five-minute timestamp window, raw-body SHA-256, and Ed25519 public keys from fal’s JWKS. A cached-key miss performs one fresh JWKS fetch and verification attempt so normal provider key rotation does not produce a false `401`. The signed request ID must match an expected D1 generation record. The explicit wire schema accepts fal’s JSON URL string and decodes it to an HTTPS `URL` on fal’s documented CDN only at the provider boundary; malformed or unsafe URL values receive a typed `422` response without logging the signed body or media URL. Webhook claims use `PROCESSING`, `RETRYABLE`, and `COMPLETED` states so transient ingestion failures can be redelivered without republishing completed work. fal media downloads use Workers' supported manual redirect mode and reject redirects before reading bytes. A result that arrives after the 25-second private-branch deadline is acknowledged and recorded as `FAL_RESULT_AFTER_DEADLINE`, but is not downloaded, committed to R2, or inserted into the timeline.
 
 Current primary references:
 
@@ -130,7 +130,7 @@ npx wrangler deploy
 
 For a cost-free deployment, explicitly set `PROVIDER_MODE` back to `fake`, remove the `secrets.required` declaration if the Worker should no longer require fal credentials, regenerate types, validate, and deploy. Live fal mode can create paid generation usage once the account has credits.
 
-The current prototype deployment was validated on 2026-08-31 with remote session creation, Queue delivery, Durable Object publication, R2 artifact commit, revision-2 playlist projection, full and byte-range media reads, and cross-session media denial. The sports canonical builder additionally requires a `CANONICAL_ADMIN_TOKEN` Worker secret; it is never placed in source or configuration.
+The current prototype deployment was validated on 2026-08-31 with remote session creation, Queue delivery, Durable Object publication, R2 artifact commit, revision-2 personalized playlist projection, full and byte-range media reads, and cross-session media denial. The reusable sports catalog was separately validated as four distinct completed provider jobs, four approved content-addressed R2 artifacts, one atomic D1 publication, and a fresh revision-1 session projected in the intended order. The sports canonical builder additionally requires a `CANONICAL_ADMIN_TOKEN` Worker secret; it is never placed in source or configuration.
 
 ## Correctness and degradation
 

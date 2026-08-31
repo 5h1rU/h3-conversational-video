@@ -235,6 +235,42 @@ export class CanonicalCatalogClip extends Schema.Class<CanonicalCatalogClip>(
   continuityContractVersion: Schema.Literal("sports-news-continuity/1"),
 }) {}
 
+export class CompletedCanonicalBuild extends Schema.Class<CompletedCanonicalBuild>(
+  "h3/CompletedCanonicalBuild",
+)({
+  generationJobId: Schema.NonEmptyString,
+  providerRequestId: Schema.NonEmptyString,
+  artifactId: ArtifactId,
+}) {}
+
+export class CanonicalPublicationClip extends Schema.Class<CanonicalPublicationClip>(
+  "h3/CanonicalPublicationClip",
+)({
+  ordinal: Schema.Int,
+  clipId: ClipId,
+  title: Schema.NonEmptyString,
+  speaker: Schema.NonEmptyString,
+  anchor: Schema.NonEmptyString,
+  artifactId: ArtifactId,
+  manifestKey: Schema.NonEmptyString,
+  providerRequestId: Schema.NonEmptyString,
+  generationJobId: Schema.NonEmptyString,
+  continuityInputKey: Schema.NonEmptyString,
+  validationEvidenceJson: Schema.NonEmptyString,
+}) {}
+
+export class CanonicalPublication extends Schema.Class<CanonicalPublication>(
+  "h3/CanonicalPublication",
+)({
+  episodeId: EpisodeId,
+  showId: ShowId,
+  showVersion: Schema.NonEmptyString,
+  continuityContractVersion: Schema.Literal("sports-news-continuity/1"),
+  continuityContractJson: Schema.NonEmptyString,
+  publishedAt: Schema.NonEmptyString,
+  clips: Schema.Array(CanonicalPublicationClip),
+}) {}
+
 export class CanonicalBuildPayload extends Schema.Class<CanonicalBuildPayload>(
   "h3/CanonicalBuildPayload",
 )({

@@ -1,5 +1,5 @@
 import { Effect, Exit } from "effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { errorResponse } from "../src/errors";
 import {
   decodeFalWebhookBody,
@@ -25,6 +25,19 @@ function webhookBody(url: string): Uint8Array {
       },
     }),
   );
+}
+
+function hex(value: ArrayBuffer): string {
+  return [...new Uint8Array(value)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function base64Url(value: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(value)))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
 }
 
 describe("fal webhook authentication boundary", () => {
@@ -58,6 +71,73 @@ describe("fal webhook authentication boundary", () => {
       }),
     );
     expect(Exit.isFailure(exit)).toBe(true);
+  });
+
+  it("refreshes a cached JWKS once when a rotating fal key does not match", async () => {
+    const requestId = "request-key-rotation";
+    const userId = "user-key-rotation";
+    const timestamp = "1000";
+    const rawBody = new TextEncoder().encode("{}");
+    const bodyHash = hex(await crypto.subtle.digest("SHA-256", rawBody));
+    const message = new TextEncoder().encode(
+      [requestId, userId, timestamp, bodyHash].join("\n"),
+    );
+    const staleKeys = await crypto.subtle.generateKey("Ed25519", true, [
+      "sign",
+      "verify",
+    ]);
+    const freshKeys = await crypto.subtle.generateKey("Ed25519", true, [
+      "sign",
+      "verify",
+    ]);
+    const signature = await crypto.subtle.sign(
+      "Ed25519",
+      freshKeys.privateKey,
+      message,
+    );
+    const cache = await caches.open("fal-webhook-jwks");
+    const cacheKey = new Request("https://rest.fal.ai/.well-known/jwks.json");
+    await cache.put(
+      cacheKey,
+      Response.json({
+        keys: [
+          {
+            x: base64Url(
+              await crypto.subtle.exportKey("raw", staleKeys.publicKey),
+            ),
+          },
+        ],
+      }),
+    );
+    const fetchStub = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        keys: [
+          {
+            x: base64Url(
+              await crypto.subtle.exportKey("raw", freshKeys.publicKey),
+            ),
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      Effect.runPromise(
+        verifyFalWebhook({
+          headers: new Headers({
+            "x-fal-webhook-request-id": requestId,
+            "x-fal-webhook-user-id": userId,
+            "x-fal-webhook-timestamp": timestamp,
+            "x-fal-webhook-signature": hex(signature),
+          }),
+          rawBody,
+          nowEpochSeconds: 1000,
+        }),
+      ),
+    ).resolves.toMatchObject({ requestId, signatureTimestamp: 1000 });
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    await cache.delete(cacheKey);
+    fetchStub.mockRestore();
   });
 
   it("decodes the official JSON video URL string into the internal URL type", async () => {

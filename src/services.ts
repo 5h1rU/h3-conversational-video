@@ -5,6 +5,8 @@ import type {
   BranchId,
   ClipId,
   ClipQueueEntry,
+  CanonicalPublication,
+  CompletedCanonicalBuild,
   EventId,
   GenerationPlan,
   CanonicalCatalogClip,
@@ -195,6 +197,9 @@ export class ArtifactStore extends Context.Service<
     validateAndCommit(
       input: ArtifactCommitInput,
     ): Effect.Effect<CommittedArtifact, ArtifactValidationError | StorageError>;
+    inspectCommitted(
+      artifactId: ArtifactId,
+    ): Effect.Effect<CommittedArtifact, ArtifactValidationError | StorageError>;
   }
 >()("h3/services/ArtifactStore") {}
 
@@ -278,6 +283,15 @@ export class CanonicalCatalog extends Context.Service<
     loadPublished(
       episodeId: string,
     ): Effect.Effect<ReadonlyArray<CanonicalCatalogClip>, StorageError>;
+    findCompletedBuild(
+      idempotencyKey: string,
+    ): Effect.Effect<CompletedCanonicalBuild | null, StorageError>;
+    publish(
+      publication: CanonicalPublication,
+    ): Effect.Effect<
+      { readonly published: boolean; readonly clipCount: number },
+      StorageError
+    >;
   }
 >()("h3/services/CanonicalCatalog") {}
 

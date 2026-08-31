@@ -21,6 +21,7 @@ import {
 import { log } from "./observability";
 import { AppConfig, AuditLedger, CanonicalCatalog } from "./services";
 import { ingestProviderResult } from "./use-cases/ingest-provider-result";
+import { publishSportsCanonical } from "./use-cases/publish-sports-canonical";
 import { submitGeneration } from "./use-cases/submit-generation";
 
 export { SessionDurableObject } from "./session-do";
@@ -153,6 +154,25 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         continuityStartImageUrl,
       }),
       { status: 202 },
+    );
+  }
+  if (
+    request.method === "POST" &&
+    url.pathname === "/v1/admin/canonical/publish"
+  ) {
+    if (!(await canonicalAdminAuthorized(request, env)))
+      throw new AppError(
+        "ADMIN_UNAUTHORIZED",
+        "Admin authorization failed",
+        401,
+      );
+    return Response.json(
+      await Effect.runPromise(
+        publishSportsCanonical(new Date().toISOString()).pipe(
+          Effect.provide(canonicalCatalogLive(env.DB)),
+          Effect.provide(artifactStoreLive(env.MEDIA)),
+        ),
+      ),
     );
   }
   const fixtureMatch = url.pathname.match(

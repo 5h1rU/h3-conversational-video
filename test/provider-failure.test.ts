@@ -135,6 +135,7 @@ describe("fal submission failure policy", () => {
       Layer.succeed(
         ArtifactStore,
         ArtifactStore.of({
+          inspectCommitted: () => Effect.die("unused"),
           validateAndCommit: () =>
             Effect.die("artifact commit must not run after provider rejection"),
         }),

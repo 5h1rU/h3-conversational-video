@@ -5,6 +5,7 @@ import {
   BUFFER_TARGET_MS,
   BranchGenerationJob,
   CanonicalCatalogClip,
+  CompletedCanonicalBuild,
   canonicalTimeline,
   CLIP_DURATION_MS,
   type ClipQueueEntry,
@@ -585,6 +586,46 @@ export function artifactStoreLive(
             return storageError("artifact.validateAndCommit", cause);
           },
         }),
+      inspectCommitted: (artifactId) =>
+        Effect.tryPromise({
+          try: async () => {
+            const digest = artifactId.slice("sha256:".length);
+            const manifestKey = `artifacts/sha256/${digest}/manifest.v1.json`;
+            const object = await bucket.get(manifestKey);
+            if (!object)
+              throw new ArtifactValidationError({
+                message: "Committed artifact manifest is missing",
+              });
+            const manifest = Schema.decodeUnknownSync(
+              Schema.Struct({
+                artifactId: ArtifactId,
+                mediaKey: Schema.NonEmptyString,
+                manifestKey: Schema.NonEmptyString,
+                contentType: Schema.NonEmptyString,
+                size: Schema.Int,
+                durationMs: Schema.Literal(5_000),
+              }),
+            )(await object.json());
+            if (
+              manifest.artifactId !== artifactId ||
+              manifest.manifestKey !== manifestKey ||
+              manifest.contentType !== "video/mp4"
+            )
+              throw new ArtifactValidationError({
+                message: "Committed artifact manifest failed validation",
+              });
+            const media = await bucket.head(manifest.mediaKey);
+            if (!media || media.size !== manifest.size)
+              throw new ArtifactValidationError({
+                message: "Committed artifact media failed validation",
+              });
+            return manifest;
+          },
+          catch: (cause) => {
+            if (cause instanceof ArtifactValidationError) return cause;
+            return storageError("artifact.inspectCommitted", cause);
+          },
+        }),
     }),
   );
 }
@@ -783,10 +824,11 @@ export function canonicalCatalogLive(
           try: async () => {
             const rows = await db
               .prepare(
-                `SELECT ordinal, clip_id, title, speaker, duration_ms, artifact_id, anchor, manifest_key, continuity_contract_version
-                 FROM canonical_clips
-                 WHERE episode_id = ? AND validation_status = 'APPROVED'
-                 ORDER BY ordinal`,
+                `SELECT c.ordinal, c.clip_id, c.title, c.speaker, c.duration_ms, c.artifact_id, c.anchor, c.manifest_key, c.continuity_contract_version
+                 FROM canonical_clips c
+                 JOIN canonical_episodes e ON e.episode_id = c.episode_id
+                 WHERE c.episode_id = ? AND c.validation_status = 'APPROVED' AND e.status = 'PUBLISHED'
+                 ORDER BY c.ordinal`,
               )
               .bind(episodeId)
               .all<{
@@ -815,6 +857,113 @@ export function canonicalCatalogLive(
             );
           },
           catch: (cause) => storageError("canonicalCatalog.load", cause),
+        }),
+      findCompletedBuild: (idempotencyKey) =>
+        Effect.tryPromise({
+          try: async () => {
+            const row = await db
+              .prepare(
+                `SELECT id, provider_request_id, artifact_id
+                 FROM generation_jobs
+                 WHERE idempotency_key = ? AND status = 'COMPLETED'
+                   AND provider_request_id IS NOT NULL AND artifact_id IS NOT NULL`,
+              )
+              .bind(idempotencyKey)
+              .first<{
+                id: string;
+                provider_request_id: string;
+                artifact_id: string;
+              }>();
+            if (!row) return null;
+            return Schema.decodeUnknownSync(CompletedCanonicalBuild)({
+              generationJobId: row.id,
+              providerRequestId: row.provider_request_id,
+              artifactId: row.artifact_id,
+            });
+          },
+          catch: (cause) =>
+            storageError("canonicalCatalog.findCompletedBuild", cause),
+        }),
+      publish: (publication) =>
+        Effect.tryPromise({
+          try: async () => {
+            if (publication.clips.length !== 4)
+              throw new Error("Canonical publication requires four clips");
+            await db.batch([
+              db
+                .prepare(
+                  `INSERT INTO canonical_episodes
+                   (episode_id, show_id, show_version, status, continuity_contract_version, continuity_contract_json, created_at, published_at)
+                   VALUES (?, ?, ?, 'BUILDING', ?, ?, ?, NULL)
+                   ON CONFLICT(episode_id) DO NOTHING`,
+                )
+                .bind(
+                  publication.episodeId,
+                  publication.showId,
+                  publication.showVersion,
+                  publication.continuityContractVersion,
+                  publication.continuityContractJson,
+                  publication.publishedAt,
+                ),
+              ...publication.clips.map((clip) =>
+                db
+                  .prepare(
+                    `INSERT INTO canonical_clips
+                     (episode_id, ordinal, clip_id, title, speaker, anchor, duration_ms, artifact_id, manifest_key,
+                      provider_request_id, generation_job_id, prompt_compiler_version, continuity_contract_version,
+                      continuity_input_key, validation_status, validation_evidence_json, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, 5000, ?, ?, ?, ?, 'h3-sports-compiler/1', ?, ?, 'APPROVED', ?, ?)
+                     ON CONFLICT(episode_id, ordinal) DO NOTHING`,
+                  )
+                  .bind(
+                    publication.episodeId,
+                    clip.ordinal,
+                    clip.clipId,
+                    clip.title,
+                    clip.speaker,
+                    clip.anchor,
+                    clip.artifactId,
+                    clip.manifestKey,
+                    clip.providerRequestId,
+                    clip.generationJobId,
+                    publication.continuityContractVersion,
+                    clip.continuityInputKey,
+                    clip.validationEvidenceJson,
+                    publication.publishedAt,
+                  ),
+              ),
+              db
+                .prepare(
+                  `UPDATE canonical_episodes
+                   SET status = 'PUBLISHED', published_at = ?
+                   WHERE episode_id = ?
+                     AND (SELECT COUNT(*) FROM canonical_clips
+                          WHERE episode_id = ? AND validation_status = 'APPROVED') = 4`,
+                )
+                .bind(
+                  publication.publishedAt,
+                  publication.episodeId,
+                  publication.episodeId,
+                ),
+            ]);
+            const result = await db
+              .prepare(
+                `SELECT e.status, COUNT(c.clip_id) AS clip_count
+                 FROM canonical_episodes e
+                 LEFT JOIN canonical_clips c ON c.episode_id = e.episode_id
+                 WHERE e.episode_id = ? GROUP BY e.episode_id`,
+              )
+              .bind(publication.episodeId)
+              .first<{ status: string; clip_count: number }>();
+            if (
+              !result ||
+              result.status !== "PUBLISHED" ||
+              result.clip_count !== 4
+            )
+              throw new Error("Canonical episode did not publish atomically");
+            return { published: true, clipCount: result.clip_count };
+          },
+          catch: (cause) => storageError("canonicalCatalog.publish", cause),
         }),
     }),
   );

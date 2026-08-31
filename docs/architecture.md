@@ -31,6 +31,8 @@ visual-bible first frame
 
 Partial builds remain quarantined. A session never observes a partly approved canonical episode.
 
+Publication is an explicit Effect use case: it resolves the four expected completed builds, revalidates every immutable R2 manifest/media pair, and commits the episode plus ordered clip catalog in one D1 `batch()`. The read path joins only `PUBLISHED` episodes, so even a failed or interrupted publication cannot leak partial catalog rows into new sessions.
+
 Queue delivery and provider completion may happen more than once or out of order. D1 claims external work once, while the Durable Object independently rejects any result that no longer matches its active branch. This two-boundary check prevents both avoidable duplicate provider submissions and duplicate playlist publication.
 
 ## Swappable pieces
@@ -50,7 +52,7 @@ Queue delivery and provider completion may happen more than once or out of order
 
 `src/canonical-sports.ts` owns the versioned sports content and `sports-news-continuity/1` contract. It fixes all audiovisual invariants and compiles four per-clip specifications without exposing episode orchestration to fal. D1 owns canonical build/audit records and approval evidence; R2 owns immutable continuity images and media manifests; the Session Durable Object snapshots only an approved episode and remains the sole live ordering authority.
 
-`src/domain.ts` separately models fal's encoded webhook envelope and its decoded provider data. The wire codec validates the JSON string in `payload.video.url`, transforms it to an HTTPS `URL`, and preserves documented nullable fields such as `expanded_prompt`. Signature verification runs over the raw bytes before this decode. A claimed delivery moves from `PROCESSING` to `COMPLETED`; transient downstream failures mark it `RETRYABLE`, and an abandoned processing lease can be reclaimed after two minutes. Media fetches use manual redirects and reject every redirect. Late results are terminal audit events: the Session Durable Object reports whether its active branch can still accept publication, so callbacks beyond the 25-second branch deadline are acknowledged without media download, R2 commit, or timeline mutation.
+`src/domain.ts` separately models fal's encoded webhook envelope and its decoded provider data. The wire codec validates the JSON string in `payload.video.url`, transforms it to an HTTPS `URL`, and preserves documented nullable fields such as `expanded_prompt`. Signature verification runs over the raw bytes before this decode. JWKS are cached for normal delivery, while a signature miss triggers one fresh fetch and verification attempt to tolerate provider key rotation without weakening authentication. A claimed delivery moves from `PROCESSING` to `COMPLETED`; transient downstream failures mark it `RETRYABLE`, and an abandoned processing lease can be reclaimed after two minutes. Media fetches use manual redirects and reject every redirect. Late results are terminal audit events: the Session Durable Object reports whether its active branch can still accept publication, so callbacks beyond the 25-second branch deadline are acknowledged without media download, R2 commit, or timeline mutation.
 
 ## Intentionally not abstracted
 
