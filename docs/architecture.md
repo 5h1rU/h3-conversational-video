@@ -17,6 +17,20 @@ HTTP typed event
   -> WebSocket control event / playlist polling
 ```
 
+For the sports episode, a separate admin-only build path compiles four immutable canonical specifications and submits them sequentially. The canonical catalog is reusable across viewers:
+
+```text
+visual-bible first frame
+  -> Messi headline -> validated endpoint frame
+  -> Messi context  -> validated endpoint frame
+  -> US Open re-entry -> validated endpoint frame
+  -> US Open continuation
+  -> continuity review -> atomic D1 episode publication
+  -> session snapshot -> canonical -> optional branch package -> canonical
+```
+
+Partial builds remain quarantined. A session never observes a partly approved canonical episode.
+
 Queue delivery and provider completion may happen more than once or out of order. D1 claims external work once, while the Durable Object independently rejects any result that no longer matches its active branch. This two-boundary check prevents both avoidable duplicate provider submissions and duplicate playlist publication.
 
 ## Swappable pieces
@@ -32,7 +46,9 @@ Queue delivery and provider completion may happen more than once or out of order
 
 `src/services.ts` contains contracts and tagged errors. `src/layers.ts` contains live adapter layers. `src/use-cases/` contains named orchestration. `src/domain.ts` is the single schema and branded-ID boundary. `src/index.ts` and `src/session-do.ts` are delivery adapters/public facade.
 
-`src/fal-provider.ts` is the replaceable provider request boundary. Its schema-checked `h3-max-cost-first/1` profile compiles a deterministic generation plan into exactly five seconds, `480P`, balanced prompt expansion, `16:9`, and safety checking. Sync/base64 response modes are intentionally absent so live work stays on the asynchronous queue/webhook path. Pricing is deliberately not part of this runtime contract because fal rates are volatile and must be checked before paid tests.
+`src/fal-provider.ts` is the replaceable provider request boundary. Its schema-checked `h3-max-cost-first/1` profile compiles a deterministic generation plan into exactly five seconds, `480P`, balanced prompt expansion, and safety checking. Text-to-video requests explicitly use `16:9`; image-to-video canonical requests use the input image's aspect ratio per fal's contract. Sync/base64 response modes are intentionally absent so live work stays on the asynchronous queue/webhook path. Pricing is deliberately not part of this runtime contract because fal rates are volatile and must be checked before paid tests.
+
+`src/canonical-sports.ts` owns the versioned sports content and `sports-news-continuity/1` contract. It fixes all audiovisual invariants and compiles four per-clip specifications without exposing episode orchestration to fal. D1 owns canonical build/audit records and approval evidence; R2 owns immutable continuity images and media manifests; the Session Durable Object snapshots only an approved episode and remains the sole live ordering authority.
 
 `src/domain.ts` separately models fal's encoded webhook envelope and its decoded provider data. The wire codec validates the JSON string in `payload.video.url`, transforms it to an HTTPS `URL`, and preserves documented nullable fields such as `expanded_prompt`. Signature verification runs over the raw bytes before this decode. A claimed delivery moves from `PROCESSING` to `COMPLETED`; transient downstream failures mark it `RETRYABLE`, and an abandoned processing lease can be reclaimed after two minutes. Media fetches use manual redirects and reject every redirect. Late results are terminal audit events: the Session Durable Object reports whether its active branch can still accept publication, so callbacks beyond the 25-second branch deadline are acknowledged without media download, R2 commit, or timeline mutation.
 
@@ -52,7 +68,7 @@ idle -> planned -> generating -> ready -> idle (after rejoin position)
                   +-> failed -> planned
 ```
 
-Planning chooses the rejoin anchor before dispatch. `planned` and `generating` block a second branch. `ready` remains active until playback passes the rejoin anchor. A failed branch never changes `playlistRevision`; a committed branch changes it exactly once.
+Planning chooses the first US Open clip as the semantic rejoin anchor before dispatch. `planned` and `generating` block a second branch. The cost-first branch may encode ingress, answer, and egress as beats in one five-second artifact; publication inserts that ordered package once before the anchor. `ready` remains active until playback passes the rejoin anchor. A failed branch never changes `playlistRevision`; a committed branch changes it exactly once. The browser advances media only on `ended` and reconciles polling updates by immutable clip identity, so rerenders cannot restart or oscillate the active clip.
 
 ## Artifact commit boundary
 

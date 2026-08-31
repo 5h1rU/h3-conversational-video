@@ -33,7 +33,8 @@ export class FalH3MaxRequest extends Schema.Class<FalH3MaxRequest>(
   seed: Schema.Int,
   enable_safety_checker: Schema.Literal(true),
   prompt_expansion_mode: Schema.Literal("balanced"),
-  aspect_ratio: Schema.Literal("16:9"),
+  aspect_ratio: Schema.optional(Schema.Literal("16:9")),
+  image_url: Schema.optional(Schema.URLFromString),
 }) {}
 
 export const encodeFalH3MaxRequest = Schema.encodeSync(FalH3MaxRequest);
@@ -50,7 +51,9 @@ export function compileFalH3MaxRequest(
       seed: plan.seed,
       enable_safety_checker: profile.safetyCheckerEnabled,
       prompt_expansion_mode: profile.promptExpansionMode,
-      aspect_ratio: profile.aspectRatio,
+      ...(plan.continuityStartImageUrl === null
+        ? { aspect_ratio: profile.aspectRatio }
+        : { image_url: plan.continuityStartImageUrl }),
     }),
   );
 }

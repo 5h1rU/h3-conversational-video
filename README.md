@@ -2,7 +2,9 @@
 
 Live prototype: [h3-conversational-video-prototype.yo-617.workers.dev](https://h3-conversational-video-prototype.yo-617.workers.dev)
 
-This repository is a deployable Cloudflare prototype of the first interactive “Signal Room” show. It runs a twelve-minute canonical clip queue (144 × five-second clips), accepts typed viewer questions, creates at most one private response branch, inserts only validated/committed media, adds an automatic re-entry clip, and falls back to uninterrupted canonical playback on failure.
+This repository is a deployable Cloudflare prototype of the first interactive “Signal Room” show. Its target shared episode is a four-clip sports-news program: two Messi clips, then two US Open clips. During the Messi segment a viewer may create one private response package; that package owns its natural ingress, answer, and egress, then resumes exactly once at the first US Open clip. Only validated, committed media may enter the playlist, and failure falls back to uninterrupted canonical playback.
+
+The sports episode is published atomically only after all four canonical artifacts pass continuity review. Until then, new sessions retain the legacy fixture timeline; partial or rejected builds are never exposed as the shared program.
 
 The deployed prototype uses the real fal.ai H3 Max adapter. Automated tests and `wrangler.test.jsonc` remain cost-free through the deterministic fake provider. A live typed branch can incur fal.ai usage only after the account has credits; provider rejection falls back to canonical playback.
 
@@ -51,7 +53,7 @@ curl -sS http://localhost:8787/v1/sessions/SESSION_ID/playlist
 - R2 keys are content addressed: `artifacts/sha256/<digest>/clip.<ext>` and `artifacts/sha256/<digest>/manifest.v1.json`. A playlist can reference only the artifact after checksum, type, size, read-after-write, and manifest commit checks pass.
 - D1 records sessions, viewer events, provider attempts, webhook claims, generation state, and the cost-ledger boundary. It does not own session ordering.
 - The player consumes a replaceable committed clip queue. Dynamic HLS/CMAF is the target adapter after codec/timestamp continuity is proven.
-- The prompt compiler is pure and deterministic. Character, world, session, and shot contexts are explicit; fal.ai receives one resolved specification and has no tools or orchestration authority.
+- The prompt compiler is pure and deterministic. Character, world, session, and shot contexts are explicit; fal.ai receives one resolved specification and has no tools or orchestration authority. Canonical media is stored once in R2 and cataloged in D1, then projected into each session with session-bound media URLs.
 - The current slice does not make an LLM call, so AI Gateway is not invoked. A future planning/intent layer belongs behind an Effect service and should use AI Gateway without changing the provider or session-ordering contracts.
 
 See [docs/architecture.md](docs/architecture.md) for module boundaries, swappable components, and intentionally native Cloudflare invariants.
@@ -66,7 +68,11 @@ All direct packages were checked against current npm metadata and are pinned exa
 
 ## fal.ai mode
 
-The current official H3 Max endpoint is `minimax/h3-max/text-to-video`. Every live request uses the explicit versioned policy `h3-max-cost-first/1`: five-second duration, `480P` resolution, `balanced` prompt expansion, `16:9` aspect ratio, safety checker enabled, a deterministic seed, and asynchronous queue mode. The adapter omits sync/base64 response fields. `src/fal-provider.ts` owns this typed provider request contract so fal defaults cannot silently move the prototype back to `768P`.
+Personalized branches use `minimax/h3-max/text-to-video`. Continuity-sensitive canonical builds use the official `minimax/h3-max/image-to-video` endpoint and an explicit first-frame `image_url`; on this endpoint the input image determines aspect ratio. Both paths use the versioned `h3-max-cost-first/1` policy: five-second duration, `480P` resolution, `balanced` prompt expansion, safety enabled, deterministic seeds, and asynchronous queue mode. The adapter omits sync/base64 response fields. `src/fal-provider.ts` owns these typed contracts so fal defaults cannot silently move the prototype back to `768P`.
+
+The versioned continuity contract `sports-news-continuity/1` fixes the fictional anchors, faces, wardrobe, studio, lighting, camera/lens/framing, voice identities, cadence, ambient audio, color grade, and chronological blocking. The first clip starts from [`assets/sports-news-visual-bible-v1.png`](assets/sports-news-visual-bible-v1.png); each later clip starts from the validated endpoint frame of its predecessor. D1 stores continuity and validation evidence and R2 holds the immutable source/endpoint images and MP4 manifests. The image-to-video route must serve both `HEAD` and `GET`, because fal probes the continuity asset before downloading it.
+
+The visual bible was generated with the built-in Codex image-generation tool from the approved fictional-anchor newsroom brief, then visually inspected before upload. It contains no celebrity likeness or sports footage.
 
 Pricing is checked at request time rather than encoded in runtime policy. As a time-sensitive snapshot only, the official model page on 2026-08-31 listed promotional rates of $0.025 per output second at `480P` and $0.04 per output second at `768P`, stated that the promotion ended September 1, and stated that those rates would then double. Verify the current official model page immediately before adding credits or running a paid test.
 
@@ -88,6 +94,7 @@ fal webhooks are verified before JSON parsing using the four official signature 
 Current primary references:
 
 - [fal H3 Max text-to-video API](https://fal.ai/models/minimax/h3-max/text-to-video/api)
+- [fal H3 Max image-to-video API](https://fal.ai/models/minimax/h3-max/image-to-video/api)
 - [fal asynchronous inference](https://fal.ai/docs/documentation/model-apis/inference/queue)
 - [fal webhook verification](https://fal.ai/docs/documentation/model-apis/inference/webhooks)
 - [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/get-started/)
@@ -123,11 +130,11 @@ npx wrangler deploy
 
 For a cost-free deployment, explicitly set `PROVIDER_MODE` back to `fake`, remove the `secrets.required` declaration if the Worker should no longer require fal credentials, regenerate types, validate, and deploy. Live fal mode can create paid generation usage once the account has credits.
 
-The current prototype deployment was validated on 2026-08-31 with remote session creation, Queue delivery, Durable Object publication, R2 artifact commit, revision-2 playlist projection, full and byte-range media reads, and cross-session media denial.
+The current prototype deployment was validated on 2026-08-31 with remote session creation, Queue delivery, Durable Object publication, R2 artifact commit, revision-2 playlist projection, full and byte-range media reads, and cross-session media denial. The sports canonical builder additionally requires a `CANONICAL_ADMIN_TOKEN` Worker secret; it is never placed in source or configuration.
 
 ## Correctness and degradation
 
-Tests cover deterministic planning, single-branch enforcement, duplicate viewer event handling, duplicate queue claim, duplicate webhook claim, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, and playlist revision changes. Provider failure or deadline expiry marks the branch failed without changing playlist revision, so canonical playback continues.
+Tests cover deterministic canonical planning, the exact 480P image-to-video request, continuity-asset `HEAD`/`GET`, canonical reuse, atomic branch-package ordering, single-branch enforcement, duplicate viewer event/queue/webhook handling, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, player identity stability across polling, and playlist revision changes. Provider failure or deadline expiry marks the branch failed without changing playlist revision, so canonical playback continues.
 
 The simulator uses SVG visual fixtures, not production video. Before replacing it with HLS, run the media proof described in the product document: consecutive MP4 codec/profile/timestamp inspection, first/last-frame continuity, audio normalization, and Safari/iOS plus Chrome/Android playback validation.
 

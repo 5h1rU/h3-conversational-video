@@ -1,4 +1,11 @@
-import { Effect, Predicate } from "effect";
+import { Effect, Predicate, Schema } from "effect";
+import {
+  continuityAssetPath,
+  SPORTS_EPISODE_ID,
+  SPORTS_SHOW_ID,
+  SPORTS_SHOW_VERSION,
+  SportsCanonicalSlotSchema,
+} from "./canonical-sports";
 import { decodeBranchGenerationJob, decodeSessionState } from "./domain";
 import { demoHtml, fixtureSvg } from "./demo";
 import { errorResponse, AppError } from "./errors";
@@ -7,11 +14,12 @@ import {
   appConfigLive,
   artifactStoreLive,
   auditLedgerLive,
+  canonicalCatalogLive,
   generationProviderLive,
   sessionPublisherLive,
 } from "./layers";
 import { log } from "./observability";
-import { AppConfig, AuditLedger } from "./services";
+import { AppConfig, AuditLedger, CanonicalCatalog } from "./services";
 import { ingestProviderResult } from "./use-cases/ingest-provider-result";
 import { submitGeneration } from "./use-cases/submit-generation";
 
@@ -22,6 +30,27 @@ async function jsonBody(request: Request): Promise<unknown> {
   if (length > 64 * 1024)
     throw new AppError("PAYLOAD_TOO_LARGE", "JSON body exceeds 64 KiB", 413);
   return request.json();
+}
+
+async function canonicalAdminAuthorized(
+  request: Request,
+  env: Env,
+): Promise<boolean> {
+  const config = await Effect.runPromise(
+    AppConfig.use((service) => Effect.succeed(service)).pipe(
+      Effect.provide(appConfigLive(env)),
+    ),
+  );
+  if (!config.canonicalAdminToken) return false;
+  const supplied = request.headers.get("authorization");
+  if (!supplied?.startsWith("Bearer ")) return false;
+  const actual = new TextEncoder().encode(supplied.slice("Bearer ".length));
+  const expected = new TextEncoder().encode(config.canonicalAdminToken);
+  if (actual.byteLength !== expected.byteLength) return false;
+  let difference = 0;
+  for (let index = 0; index < actual.byteLength; index += 1)
+    difference |= (actual[index] ?? 0) ^ (expected[index] ?? 0);
+  return difference === 0;
 }
 
 async function handleRequest(request: Request, env: Env): Promise<Response> {
@@ -42,6 +71,90 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       },
     });
   }
+  const canonicalAssetMatch = url.pathname.match(
+    /^\/v1\/canonical\/assets\/(sports-news-visual-bible-v1|messi-headline-end|messi-context-end|us-open-reentry-end)\.png$/,
+  );
+  if (
+    (request.method === "GET" || request.method === "HEAD") &&
+    canonicalAssetMatch?.[1]
+  ) {
+    const key = `canonical/${SPORTS_EPISODE_ID}/continuity/${canonicalAssetMatch[1]}.png`;
+    if (request.method === "HEAD") {
+      const metadata = await env.MEDIA.head(key);
+      if (!metadata)
+        throw new AppError(
+          "CANONICAL_ASSET_NOT_FOUND",
+          "Continuity asset not found",
+          404,
+        );
+      const headers = new Headers();
+      metadata.writeHttpMetadata(headers);
+      headers.set("ETag", metadata.httpEtag);
+      headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      return new Response(null, { headers });
+    }
+    const object = await env.MEDIA.get(key);
+    if (!object)
+      throw new AppError(
+        "CANONICAL_ASSET_NOT_FOUND",
+        "Continuity asset not found",
+        404,
+      );
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set("ETag", object.httpEtag);
+    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    return new Response(object.body, { headers });
+  }
+  const canonicalBuildMatch = url.pathname.match(
+    /^\/v1\/admin\/canonical\/build\/(messi-headline|messi-context|us-open-reentry|us-open-continuation)$/,
+  );
+  if (request.method === "POST" && canonicalBuildMatch?.[1]) {
+    if (!(await canonicalAdminAuthorized(request, env)))
+      throw new AppError(
+        "ADMIN_UNAUTHORIZED",
+        "Admin authorization failed",
+        401,
+      );
+    const slot = Schema.decodeUnknownSync(SportsCanonicalSlotSchema)(
+      canonicalBuildMatch[1],
+    );
+    const attempt = Schema.decodeUnknownSync(Schema.Literals([1, 2]))(
+      Number(url.searchParams.get("attempt") ?? "1"),
+    );
+    const sessionId = `canonical-build-${SPORTS_EPISODE_ID}-${slot}`;
+    const stub = env.SESSIONS.getByName(sessionId);
+    const state = await stub.initialize({
+      sessionId,
+      showId: "canonical-builder",
+      episodeId: `canonical-builder-${slot}`,
+      showVersion: SPORTS_SHOW_VERSION,
+    });
+    const decodedState = decodeSessionState(state);
+    await Effect.runPromise(
+      AuditLedger.use((audit) =>
+        audit.recordSession({
+          sessionId: decodedState.sessionId,
+          showId: decodedState.showId,
+          episodeId: decodedState.episodeId,
+          showVersion: decodedState.showVersion,
+          at: new Date().toISOString(),
+        }),
+      ).pipe(Effect.provide(auditLedgerLive(env.DB))),
+    );
+    const continuityStartImageUrl = new URL(
+      continuityAssetPath(slot),
+      env.PUBLIC_BASE_URL,
+    ).toString();
+    return Response.json(
+      await stub.buildCanonicalClip({
+        slot,
+        attempt,
+        continuityStartImageUrl,
+      }),
+      { status: 202 },
+    );
+  }
   const fixtureMatch = url.pathname.match(
     /^\/v1\/fixtures\/(\d+|reentry)\.svg$/,
   );
@@ -61,10 +174,43 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       Predicate.isString(payload.sessionId)
         ? payload.sessionId
         : crypto.randomUUID();
+    const requestedEpisodeId =
+      Predicate.hasProperty(payload, "episodeId") &&
+      Predicate.isString(payload.episodeId)
+        ? payload.episodeId
+        : SPORTS_EPISODE_ID;
+    const catalog = await Effect.runPromise(
+      CanonicalCatalog.use((service) =>
+        service.loadPublished(requestedEpisodeId),
+      ).pipe(Effect.provide(canonicalCatalogLive(env.DB))),
+    );
+    const canonicalEntries = catalog.map((clip) => ({
+      ordinal: clip.ordinal,
+      id: clip.id,
+      source: "canonical" as const,
+      title: clip.title,
+      speaker: clip.speaker,
+      durationMs: clip.durationMs,
+      mediaUrl: `/v1/sessions/${requestedId}/media/${clip.artifactId}`,
+      anchor: clip.anchor,
+      committed: true as const,
+    }));
     const stub = env.SESSIONS.getByName(requestedId);
     const state = await stub.initialize({
       ...payload,
       sessionId: requestedId,
+      showId:
+        Predicate.hasProperty(payload, "showId") &&
+        Predicate.isString(payload.showId)
+          ? payload.showId
+          : SPORTS_SHOW_ID,
+      episodeId: requestedEpisodeId,
+      showVersion:
+        Predicate.hasProperty(payload, "showVersion") &&
+        Predicate.isString(payload.showVersion)
+          ? payload.showVersion
+          : SPORTS_SHOW_VERSION,
+      canonicalEntries,
     });
     const decodedState = decodeSessionState(state);
     await Effect.runPromise(

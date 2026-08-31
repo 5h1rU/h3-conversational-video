@@ -4,6 +4,7 @@ import {
   GenerationPlan,
   type SessionState,
 } from "./domain";
+import { SPORTS_VISUAL_BIBLE } from "./canonical-sports";
 
 function deterministicSeed(value: string): number {
   let hash = 2166136261;
@@ -25,13 +26,12 @@ export function compileGenerationPlan(input: {
     primary: "Mara Vale" as const,
     secondary: "Theo Reyes" as const,
     speakingRule:
-      "Mara answers directly; Theo may react silently. Do not invent biography or expertise.",
+      "Choose natural wording for the exact viewer question. Acknowledge it briefly, answer concisely, and bridge organically to the next headline. Do not use a canned receipt phrase or invent facts.",
   };
   const world = {
     show: "The Signal Room" as const,
-    set: "Warm midnight-blue newsroom, amber practical lights, curved evidence desk, stable wardrobe.",
-    cameraGrammar:
-      "Locked medium two-shot; one restrained push-in; no cuts or new camera angles.",
+    set: SPORTS_VISUAL_BIBLE.studio,
+    cameraGrammar: SPORTS_VISUAL_BIBLE.camera,
     visualDisclosure:
       "Small persistent GENERATED label in lower-right safe area.",
   };
@@ -42,12 +42,12 @@ export function compileGenerationPlan(input: {
   };
   const shot = {
     purpose: "answer-viewer-question" as const,
-    dialogue: `Mara, in one compact sentence, answer: “${input.question}” Then say: “Let’s rejoin the signal.”`,
+    dialogue: `The viewer asks: “${input.question}” Mara naturally acknowledges the substance of that exact question, gives one compact truthful answer, then chooses her own concise egress wording that makes the move to an independent next headline feel natural. Never say “we received a question” and never quote an unknown answer as fact.`,
     framing:
       "Mara foreground left, Theo listening right, eye lines remain on-axis.",
     motion:
       "Subtle breathing and one natural hand gesture; end in neutral listening pose.",
-    audio: "Broadcast-clean dialogue, consistent room tone, no music change.",
+    audio: SPORTS_VISUAL_BIBLE.audio,
     terminalState:
       "Both panelists face the evidence wall, ready for canonical re-entry.",
   };
@@ -67,6 +67,12 @@ export function compileGenerationPlan(input: {
     seed: deterministicSeed(
       `${input.branchId}:${input.question}:${input.rejoinAnchor}`,
     ),
+    providerModel: "minimax/h3-max/image-to-video",
+    continuityStartImageUrl: new URL(
+      "/v1/canonical/assets/messi-context-end.png",
+      "https://h3-conversational-video-prototype.yo-617.workers.dev",
+    ),
+    packageBeats: ["ingress", "answer", "egress"],
     character,
     world,
     session,

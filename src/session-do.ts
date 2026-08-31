@@ -1,6 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { Effect } from "effect";
+import { Clock, Effect, Schema } from "effect";
 import {
+  ArtifactId,
+  EventId,
+  decodeCanonicalBuildPayload,
   decodeCreateSessionPayload,
   decodeSessionState,
   decodeViewerEventPayload,
@@ -8,14 +11,21 @@ import {
   type BranchId,
   type SessionState,
   type SessionStateEncoded,
+  ViewerEventPayload,
 } from "./domain";
+import { compileCanonicalSportsPlan } from "./canonical-sports";
 import {
   generationQueueLive,
   idGeneratorLive,
   migrateSessionStorage,
   sessionRepositoryLive,
 } from "./layers";
-import { SessionRepository, type CommittedArtifact } from "./services";
+import {
+  GenerationQueue,
+  IdGenerator,
+  SessionRepository,
+  type CommittedArtifact,
+} from "./services";
 import { acceptViewerIntent } from "./use-cases/accept-viewer-intent";
 import { createSession } from "./use-cases/create-session";
 
@@ -114,6 +124,56 @@ export class SessionDurableObject extends DurableObject<Env> {
     };
   }
 
+  async buildCanonicalClip(payload: unknown): Promise<{
+    readonly duplicate: boolean;
+    readonly state: SessionStateEncoded;
+    readonly queued: boolean;
+  }> {
+    const program = Effect.gen(function* () {
+      const decoded = yield* decodeCanonicalBuildPayload(payload);
+      const repository = yield* SessionRepository;
+      const queue = yield* GenerationQueue;
+      const ids = yield* IdGenerator;
+      const state = yield* repository.read();
+      const now = yield* Clock.currentTimeMillis;
+      const plan = compileCanonicalSportsPlan(decoded);
+      const event = new ViewerEventPayload({
+        eventId: Schema.decodeUnknownSync(EventId)(
+          `canonical-event-${decoded.slot}-${decoded.attempt}`,
+        ),
+        text: `canonical:${decoded.slot}`,
+        playbackPositionMs: 0,
+        playlistRevision: state.playlistRevision,
+      });
+      const reserved = yield* repository.reserveBranch({
+        event,
+        branchId: plan.branchId,
+        clipId: plan.clipId,
+        jobId: yield* ids.next,
+        idempotencyKey:
+          decoded.attempt === 1
+            ? `canonical:${decoded.slot}:v1`
+            : `canonical:${decoded.slot}:v1:retry:2`,
+        deadlineAt: now + 15 * 60_000,
+        plan,
+      });
+      if (reserved.job !== null) yield* queue.send(reserved.job);
+      return reserved;
+    }).pipe(
+      Effect.provide(this.repositoryLayer()),
+      Effect.provide(generationQueueLive(this.env.BRANCH_GENERATION)),
+      Effect.provide(idGeneratorLive),
+    );
+    const reserved = await Effect.runPromise(program);
+    if (reserved.job !== null)
+      await this.ctx.storage.setAlarm(reserved.job.deadlineAt);
+    return {
+      duplicate: reserved.duplicate,
+      state: encodeSessionState(reserved.state),
+      queued: reserved.job !== null,
+    };
+  }
+
   async getState(): Promise<SessionStateEncoded> {
     const state = await Effect.runPromise(
       SessionRepository.use((repository) => repository.read()).pipe(
@@ -135,12 +195,12 @@ export class SessionDurableObject extends DurableObject<Env> {
 
   async ownsArtifact(artifactId: string): Promise<boolean> {
     return Effect.runPromise(
-      SessionRepository.use((repository) => repository.read()).pipe(
-        Effect.map((state) => state.branchArtifactId === artifactId),
-        Effect.catchTags({
-          StorageError: () => Effect.succeed(false),
-          SessionNotInitialized: () => Effect.succeed(false),
-        }),
+      SessionRepository.use((repository) =>
+        repository.ownsArtifact(
+          Schema.decodeUnknownSync(ArtifactId)(artifactId),
+        ),
+      ).pipe(
+        Effect.catchTag("StorageError", () => Effect.succeed(false)),
         Effect.provide(this.repositoryLayer()),
       ),
     );

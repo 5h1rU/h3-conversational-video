@@ -88,6 +88,7 @@ function auditLayer(recorded: string[]): Layer.Layer<AuditLedger> {
           branchId,
           clipId,
           stateVersion: Schema.decodeUnknownSync(StateVersion)(3),
+          promptCompilerVersion: "h3-compiler/1" as const,
         }),
       markCompleted: () =>
         Effect.sync(() => {

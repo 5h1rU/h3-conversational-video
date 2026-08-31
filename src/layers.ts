@@ -4,6 +4,7 @@ import {
   ArtifactId,
   BUFFER_TARGET_MS,
   BranchGenerationJob,
+  CanonicalCatalogClip,
   canonicalTimeline,
   CLIP_DURATION_MS,
   type ClipQueueEntry,
@@ -16,6 +17,7 @@ import {
   ArtifactValidationError,
   AuditLedger,
   BranchBusy,
+  CanonicalCatalog,
   GenerationProvider,
   GenerationQueue,
   IdGenerator,
@@ -70,6 +72,22 @@ export function migrateSessionStorage(ctx: DurableObjectState): void {
       event_id TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS canonical_playlist (
+      ordinal INTEGER PRIMARY KEY,
+      id TEXT NOT NULL UNIQUE,
+      source TEXT NOT NULL CHECK (source = 'canonical'),
+      title TEXT NOT NULL,
+      speaker TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      media_url TEXT NOT NULL,
+      anchor TEXT NOT NULL,
+      artifact_id TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS branch_packages (
+      branch_id TEXT PRIMARY KEY,
+      package_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
   `);
 }
 
@@ -112,6 +130,26 @@ export function sessionRepositoryLive(
                 JSON.stringify(state),
                 input.now,
               );
+              for (const entry of input.canonicalEntries) {
+                const artifactId = entry.mediaUrl.split("/media/")[1];
+                if (!artifactId)
+                  throw new Error(
+                    "Canonical entry has no session media artifact",
+                  );
+                ctx.storage.sql.exec(
+                  `INSERT INTO canonical_playlist
+                   (ordinal, id, source, title, speaker, duration_ms, media_url, anchor, artifact_id)
+                   VALUES (?, ?, 'canonical', ?, ?, ?, ?, ?, ?)`,
+                  entry.ordinal,
+                  entry.id,
+                  entry.title,
+                  entry.speaker,
+                  entry.durationMs,
+                  entry.mediaUrl,
+                  entry.anchor,
+                  artifactId,
+                );
+              }
               return state;
             }),
           catch: (cause) => storageError("session.initialize", cause),
@@ -141,9 +179,8 @@ export function sessionRepositoryLive(
                 canonicalTimeline().length - 1,
                 Math.floor(input.event.playbackPositionMs / CLIP_DURATION_MS),
               );
-              const rejoinIndex = Math.min(
-                canonicalTimeline().length - 1,
-                playbackIndex + 4,
+              const rejoinIndex = Number(
+                input.plan.session.rejoinAnchor.slice(-3),
               );
               const branchFinished =
                 state.branchPhase === "ready" &&
@@ -250,6 +287,23 @@ export function sessionRepositoryLive(
                 playlistRevision: state.playlistRevision + 1,
                 deadlineAt: null,
               });
+              ctx.storage.sql.exec(
+                `INSERT INTO branch_packages (branch_id, package_json, created_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(branch_id) DO NOTHING`,
+                input.branchId,
+                JSON.stringify({
+                  version: "branch-package/1",
+                  entries: [
+                    {
+                      artifactId: input.artifact.artifactId,
+                      beatKinds: ["ingress", "answer", "egress"],
+                    },
+                  ],
+                  rejoinAnchor: state.rejoinAnchor,
+                }),
+                Date.now(),
+              );
               writeSessionState(ctx, next);
               return next;
             }),
@@ -282,7 +336,34 @@ export function sessionRepositoryLive(
         Effect.try({
           try: () => {
             const state = readSessionState(ctx);
-            const canonical = [...canonicalTimeline()];
+            const storedCanonical = ctx.storage.sql
+              .exec<{
+                ordinal: number;
+                id: string;
+                title: string;
+                speaker: string;
+                duration_ms: number;
+                media_url: string;
+                anchor: string;
+              }>(
+                `SELECT ordinal, id, title, speaker, duration_ms, media_url, anchor
+                 FROM canonical_playlist ORDER BY ordinal`,
+              )
+              .toArray();
+            const canonical: ClipQueueEntry[] =
+              storedCanonical.length > 0
+                ? storedCanonical.map((entry) => ({
+                    ordinal: entry.ordinal,
+                    id: entry.id,
+                    source: "canonical",
+                    title: entry.title,
+                    speaker: entry.speaker,
+                    durationMs: entry.duration_ms,
+                    mediaUrl: entry.media_url,
+                    anchor: entry.anchor,
+                    committed: true,
+                  }))
+                : [...canonicalTimeline()];
             if (
               state.branchPhase !== "ready" ||
               state.branchId === null ||
@@ -319,12 +400,36 @@ export function sessionRepositoryLive(
               anchor: state.rejoinAnchor,
               committed: true,
             };
-            return [...before, branch, reentry, ...after];
+            const packageRow = ctx.storage.sql
+              .exec<{ package_json: string }>(
+                "SELECT package_json FROM branch_packages WHERE branch_id = ?",
+                state.branchId,
+              )
+              .toArray()[0];
+            return packageRow
+              ? [...before, branch, ...after]
+              : [...before, branch, reentry, ...after];
           },
           catch: (cause) =>
             cause instanceof SessionNotInitialized
               ? cause
               : storageError("session.playlist", cause),
+        }),
+      ownsArtifact: (artifactId) =>
+        Effect.try({
+          try: () => {
+            const state = readSessionState(ctx);
+            if (state.branchArtifactId === artifactId) return true;
+            return Boolean(
+              ctx.storage.sql
+                .exec<{ artifact_id: string }>(
+                  "SELECT artifact_id FROM canonical_playlist WHERE artifact_id = ? LIMIT 1",
+                  artifactId,
+                )
+                .toArray()[0],
+            );
+          },
+          catch: (cause) => storageError("session.ownsArtifact", cause),
         }),
     }),
   );
@@ -530,14 +635,14 @@ export function generationProviderLive(
                   contentType: "image/svg+xml" as const,
                   durationMs: 5_000 as const,
                   providerRequestId: requestId,
-                  promptCompilerVersion: "h3-compiler/1" as const,
+                  promptCompilerVersion: job.plan.compilerVersion,
                 },
               };
             }
             if (!config.falKey)
               throw new Error("FAL_KEY is required when PROVIDER_MODE=fal");
             const webhookUrl = `${config.publicBaseUrl}/v1/webhooks/fal`;
-            const endpoint = `https://queue.fal.run/${config.falModel}?fal_webhook=${encodeURIComponent(webhookUrl)}`;
+            const endpoint = `https://queue.fal.run/${job.plan.providerModel}?fal_webhook=${encodeURIComponent(webhookUrl)}`;
             const response = await fetch(endpoint, {
               method: "POST",
               headers: {
@@ -622,7 +727,7 @@ export function generationProviderLive(
               contentType: "video/mp4" as const,
               durationMs: 5_000 as const,
               providerRequestId: input.providerRequestId,
-              promptCompilerVersion: "h3-compiler/1" as const,
+              promptCompilerVersion: input.promptCompilerVersion,
             };
           },
           catch: (cause) =>
@@ -652,6 +757,12 @@ export function appConfigLive(env: Env): Layer.Layer<AppConfig> {
       publicBaseUrl: env.PUBLIC_BASE_URL,
       falModel: env.FAL_MODEL,
       falKey: bindingSecret(env),
+      canonicalAdminToken:
+        "CANONICAL_ADMIN_TOKEN" in env &&
+        Predicate.isString(env.CANONICAL_ADMIN_TOKEN) &&
+        env.CANONICAL_ADMIN_TOKEN.length > 0
+          ? env.CANONICAL_ADMIN_TOKEN
+          : undefined,
     }),
   );
 }
@@ -660,6 +771,54 @@ export const idGeneratorLive = Layer.succeed(
   IdGenerator,
   IdGenerator.of({ next: Effect.sync(() => crypto.randomUUID()) }),
 );
+
+export function canonicalCatalogLive(
+  db: D1Database,
+): Layer.Layer<CanonicalCatalog> {
+  return Layer.succeed(
+    CanonicalCatalog,
+    CanonicalCatalog.of({
+      loadPublished: (episodeId) =>
+        Effect.tryPromise({
+          try: async () => {
+            const rows = await db
+              .prepare(
+                `SELECT ordinal, clip_id, title, speaker, duration_ms, artifact_id, anchor, manifest_key, continuity_contract_version
+                 FROM canonical_clips
+                 WHERE episode_id = ? AND validation_status = 'APPROVED'
+                 ORDER BY ordinal`,
+              )
+              .bind(episodeId)
+              .all<{
+                ordinal: number;
+                clip_id: string;
+                title: string;
+                speaker: string;
+                duration_ms: number;
+                artifact_id: string;
+                anchor: string;
+                manifest_key: string;
+                continuity_contract_version: string;
+              }>();
+            return Schema.decodeUnknownSync(Schema.Array(CanonicalCatalogClip))(
+              rows.results.map((row) => ({
+                ordinal: row.ordinal,
+                id: row.clip_id,
+                title: row.title,
+                speaker: row.speaker,
+                durationMs: row.duration_ms,
+                artifactId: row.artifact_id,
+                anchor: row.anchor,
+                manifestKey: row.manifest_key,
+                continuityContractVersion: row.continuity_contract_version,
+              })),
+            );
+          },
+          catch: (cause) => storageError("canonicalCatalog.load", cause),
+        }),
+    }),
+  );
+}
 
 export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
   const run = <A>(
@@ -753,7 +912,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
         run("audit.findJobByProviderRequest", async () => {
           const row = await db
             .prepare(
-              "SELECT id, session_id, branch_id, clip_id, state_version FROM generation_jobs WHERE provider_request_id = ?",
+              "SELECT id, session_id, branch_id, clip_id, state_version, prompt_compiler_version FROM generation_jobs WHERE provider_request_id = ?",
             )
             .bind(requestId)
             .first<{
@@ -762,6 +921,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
               branch_id: string;
               clip_id: string;
               state_version: number;
+              prompt_compiler_version: "h3-compiler/1" | "h3-sports-compiler/1";
             }>();
           if (!row) return null;
           return Schema.decodeUnknownSync(
@@ -771,6 +931,10 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
               branchId: Schema.NonEmptyString.pipe(Schema.brand("BranchId")),
               clipId: Schema.NonEmptyString.pipe(Schema.brand("ClipId")),
               stateVersion: Schema.Int.pipe(Schema.brand("StateVersion")),
+              promptCompilerVersion: Schema.Literals([
+                "h3-compiler/1",
+                "h3-sports-compiler/1",
+              ]),
             }),
           )({
             jobId: row.id,
@@ -778,6 +942,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
             branchId: row.branch_id,
             clipId: row.clip_id,
             stateVersion: row.state_version,
+            promptCompilerVersion: row.prompt_compiler_version,
           });
         }),
       markCompleted: (jobId, artifactId, at) =>

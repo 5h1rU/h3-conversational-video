@@ -5,6 +5,11 @@ import {
   ShowId,
   type CreateSessionPayload,
 } from "../domain";
+import {
+  SPORTS_EPISODE_ID,
+  SPORTS_SHOW_ID,
+  SPORTS_SHOW_VERSION,
+} from "../canonical-sports";
 import { IdGenerator, InputError, SessionRepository } from "../services";
 
 const decodeSessionId = Schema.decodeUnknownEffect(SessionId);
@@ -21,18 +26,19 @@ export const createSession = Effect.fn("createSession")(function* (
   const sessionId = yield* decodeSessionId(generated).pipe(
     Effect.mapError(() => invalid("Invalid session id")),
   );
-  const showId = yield* decodeShowId(payload.showId ?? "signal-room").pipe(
+  const showId = yield* decodeShowId(payload.showId ?? SPORTS_SHOW_ID).pipe(
     Effect.mapError(() => invalid("Invalid show id")),
   );
   const episodeId = yield* decodeEpisodeId(
-    payload.episodeId ?? "episode-001",
+    payload.episodeId ?? SPORTS_EPISODE_ID,
   ).pipe(Effect.mapError(() => invalid("Invalid episode id")));
   const now = yield* Clock.currentTimeMillis;
   return yield* repository.initialize({
     sessionId,
     showId,
     episodeId,
-    showVersion: payload.showVersion ?? "2026-08-31.v1",
+    showVersion: payload.showVersion ?? SPORTS_SHOW_VERSION,
     now,
+    canonicalEntries: payload.canonicalEntries ?? [],
   });
 });

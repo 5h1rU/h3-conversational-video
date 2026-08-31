@@ -85,6 +85,7 @@ export const ingestProviderResult = Effect.fn("ingestProviderResult")(
         clipId: job.clipId,
         branchId: job.branchId,
         providerRequestId: input.webhook.request_id,
+        promptCompilerVersion: job.promptCompilerVersion,
       });
       const artifact = yield* validateCommitArtifact(candidate);
       const state = yield* publishTimeline({

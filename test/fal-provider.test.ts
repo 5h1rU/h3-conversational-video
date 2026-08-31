@@ -81,7 +81,8 @@ describe("fal H3 Max cost-first request", () => {
       seed: job.plan.seed,
       enable_safety_checker: true,
       prompt_expansion_mode: "balanced",
-      aspect_ratio: "16:9",
+      image_url:
+        "https://h3-conversational-video-prototype.yo-617.workers.dev/v1/canonical/assets/messi-context-end.png",
     };
     let capturedUrl = "";
     let capturedBody: unknown;
@@ -108,6 +109,7 @@ describe("fal H3 Max cost-first request", () => {
       publicBaseUrl: "https://prototype.example",
       falModel: "minimax/h3-max/text-to-video",
       falKey: "test-only-key",
+      canonicalAdminToken: undefined,
     };
 
     const submission = await Effect.runPromise(
@@ -118,11 +120,12 @@ describe("fal H3 Max cost-first request", () => {
     );
 
     expect(capturedUrl).toBe(
-      "https://queue.fal.run/minimax/h3-max/text-to-video?fal_webhook=https%3A%2F%2Fprototype.example%2Fv1%2Fwebhooks%2Ffal",
+      "https://queue.fal.run/minimax/h3-max/image-to-video?fal_webhook=https%3A%2F%2Fprototype.example%2Fv1%2Fwebhooks%2Ffal",
     );
     expect(capturedBody).toEqual(expectedBody);
     expect(capturedBody).not.toHaveProperty("sync_mode");
     expect(capturedBody).not.toHaveProperty("response_format");
+    expect(capturedBody).not.toHaveProperty("aspect_ratio");
     expect(compileFalH3MaxRequest(job.plan)).toEqual(expectedBody);
     expect(submission).toEqual({
       kind: "submitted",
@@ -153,6 +156,7 @@ describe("fal H3 Max cost-first request", () => {
       publicBaseUrl: "https://prototype.example",
       falModel: "minimax/h3-max/text-to-video",
       falKey: "test-only-key",
+      canonicalAdminToken: undefined,
     };
 
     const result = await Effect.runPromise(
@@ -165,6 +169,7 @@ describe("fal H3 Max cost-first request", () => {
           clipId: job.clipId,
           branchId: job.branchId,
           providerRequestId: "fal-request-cost-profile",
+          promptCompilerVersion: job.plan.compilerVersion,
         });
       }).pipe(Effect.provide(generationProviderLive(config))),
     );
@@ -192,6 +197,7 @@ describe("fal H3 Max cost-first request", () => {
       publicBaseUrl: "https://prototype.example",
       falModel: "minimax/h3-max/text-to-video",
       falKey: "test-only-key",
+      canonicalAdminToken: undefined,
     };
 
     await expect(
@@ -205,6 +211,7 @@ describe("fal H3 Max cost-first request", () => {
             clipId: job.clipId,
             branchId: job.branchId,
             providerRequestId: "fal-request-cost-profile",
+            promptCompilerVersion: job.plan.compilerVersion,
           });
         }).pipe(Effect.provide(generationProviderLive(config))),
       ),

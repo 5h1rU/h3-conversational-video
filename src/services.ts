@@ -7,6 +7,7 @@ import type {
   ClipQueueEntry,
   EventId,
   GenerationPlan,
+  CanonicalCatalogClip,
   SessionId,
   SessionState,
   ShowId,
@@ -67,6 +68,7 @@ export interface SessionInitialization {
   readonly episodeId: string;
   readonly showVersion: string;
   readonly now: number;
+  readonly canonicalEntries: ReadonlyArray<ClipQueueEntry>;
 }
 
 export interface ReservedBranch {
@@ -82,7 +84,7 @@ export interface ArtifactCommitInput {
   readonly contentType: "video/mp4" | "image/svg+xml";
   readonly durationMs: 5_000;
   readonly providerRequestId: string;
-  readonly promptCompilerVersion: "h3-compiler/1";
+  readonly promptCompilerVersion: "h3-compiler/1" | "h3-sports-compiler/1";
 }
 
 export interface CommittedArtifact {
@@ -136,6 +138,7 @@ export class SessionRepository extends Context.Service<
       ReadonlyArray<ClipQueueEntry>,
       SessionNotInitialized | StorageError
     >;
+    ownsArtifact(artifactId: ArtifactId): Effect.Effect<boolean, StorageError>;
   }
 >()("h3/services/SessionRepository") {}
 
@@ -157,6 +160,7 @@ export class GenerationProvider extends Context.Service<
       readonly clipId: ClipId;
       readonly branchId: BranchId;
       readonly providerRequestId: string;
+      readonly promptCompilerVersion: "h3-compiler/1" | "h3-sports-compiler/1";
     }): Effect.Effect<ArtifactCommitInput, ProviderError>;
   }
 >()("h3/services/GenerationProvider") {}
@@ -228,6 +232,8 @@ export class AuditLedger extends Context.Service<
         readonly branchId: BranchId;
         readonly clipId: ClipId;
         readonly stateVersion: StateVersion;
+        readonly promptCompilerVersion:
+          "h3-compiler/1" | "h3-sports-compiler/1";
       } | null,
       StorageError
     >;
@@ -262,8 +268,18 @@ export class AppConfig extends Context.Service<
     readonly publicBaseUrl: string;
     readonly falModel: string;
     readonly falKey: string | undefined;
+    readonly canonicalAdminToken: string | undefined;
   }
 >()("h3/services/AppConfig") {}
+
+export class CanonicalCatalog extends Context.Service<
+  CanonicalCatalog,
+  {
+    loadPublished(
+      episodeId: string,
+    ): Effect.Effect<ReadonlyArray<CanonicalCatalogClip>, StorageError>;
+  }
+>()("h3/services/CanonicalCatalog") {}
 
 export class IdGenerator extends Context.Service<
   IdGenerator,

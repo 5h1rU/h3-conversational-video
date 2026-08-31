@@ -28,6 +28,27 @@ export type TimelineRevision = typeof TimelineRevision.Type;
 export const StateVersion = Schema.Int.pipe(Schema.brand("StateVersion"));
 export type StateVersion = typeof StateVersion.Type;
 
+export const ClipSourceSchema = Schema.Literals([
+  "canonical",
+  "branch",
+  "reentry",
+]);
+export type ClipSource = typeof ClipSourceSchema.Type;
+export class ClipQueueEntrySchema extends Schema.Class<ClipQueueEntrySchema>(
+  "h3/ClipQueueEntry",
+)({
+  ordinal: Schema.Int,
+  id: Schema.NonEmptyString,
+  source: ClipSourceSchema,
+  title: Schema.NonEmptyString,
+  speaker: Schema.NonEmptyString,
+  durationMs: Schema.Int,
+  mediaUrl: Schema.NonEmptyString,
+  anchor: Schema.NonEmptyString,
+  committed: Schema.Literal(true),
+}) {}
+export type ClipQueueEntry = typeof ClipQueueEntrySchema.Type;
+
 export class CreateSessionPayload extends Schema.Class<CreateSessionPayload>(
   "h3/CreateSessionPayload",
 )({
@@ -35,6 +56,7 @@ export class CreateSessionPayload extends Schema.Class<CreateSessionPayload>(
   showId: Schema.optional(ShowId),
   episodeId: Schema.optional(EpisodeId),
   showVersion: Schema.optional(Schema.NonEmptyString),
+  canonicalEntries: Schema.optional(Schema.Array(ClipQueueEntrySchema)),
 }) {}
 
 export class ViewerEventPayload extends Schema.Class<ViewerEventPayload>(
@@ -95,7 +117,7 @@ export const GenerationSessionContext = Schema.Struct({
   rejoinAnchor: Schema.String,
 });
 export const ShotInstruction = Schema.Struct({
-  purpose: Schema.Literal("answer-viewer-question"),
+  purpose: Schema.Literals(["answer-viewer-question", "canonical-segment"]),
   dialogue: Schema.String,
   framing: Schema.String,
   motion: Schema.String,
@@ -106,11 +128,19 @@ export const ShotInstruction = Schema.Struct({
 export class GenerationPlan extends Schema.Class<GenerationPlan>(
   "h3/GenerationPlan",
 )({
-  compilerVersion: Schema.Literal("h3-compiler/1"),
+  compilerVersion: Schema.Literals(["h3-compiler/1", "h3-sports-compiler/1"]),
   clipId: ClipId,
   branchId: BranchId,
   durationSeconds: Schema.Literal(5),
   seed: Schema.Int,
+  providerModel: Schema.Literals([
+    "minimax/h3-max/text-to-video",
+    "minimax/h3-max/image-to-video",
+  ]),
+  continuityStartImageUrl: Schema.NullOr(Schema.URLFromString),
+  packageBeats: Schema.Array(
+    Schema.Literals(["canonical", "ingress", "answer", "egress"]),
+  ),
   character: CharacterContext,
   world: WorldContext,
   session: GenerationSessionContext,
@@ -191,18 +221,40 @@ export const decodeFalWebhookPayload = Schema.decodeUnknownEffect(
   FalWebhookPayloadWire,
 );
 
-export type ClipSource = "canonical" | "branch" | "reentry";
-export interface ClipQueueEntry {
-  readonly ordinal: number;
-  readonly id: string;
-  readonly source: ClipSource;
-  readonly title: string;
-  readonly speaker: string;
-  readonly durationMs: number;
-  readonly mediaUrl: string;
-  readonly anchor: string;
-  readonly committed: true;
-}
+export class CanonicalCatalogClip extends Schema.Class<CanonicalCatalogClip>(
+  "h3/CanonicalCatalogClip",
+)({
+  ordinal: Schema.Int,
+  id: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+  speaker: Schema.NonEmptyString,
+  durationMs: Schema.Literal(5_000),
+  artifactId: ArtifactId,
+  anchor: Schema.NonEmptyString,
+  manifestKey: Schema.NonEmptyString,
+  continuityContractVersion: Schema.Literal("sports-news-continuity/1"),
+}) {}
+
+export class CanonicalBuildPayload extends Schema.Class<CanonicalBuildPayload>(
+  "h3/CanonicalBuildPayload",
+)({
+  slot: Schema.Literals([
+    "messi-headline",
+    "messi-context",
+    "us-open-reentry",
+    "us-open-continuation",
+  ]),
+  attempt: Schema.Literals([1, 2]),
+  continuityStartImageUrl: Schema.URLFromString,
+}) {}
+
+export const decodeCanonicalBuildPayload = Schema.decodeUnknownEffect(
+  CanonicalBuildPayload,
+);
+
+export const decodeCanonicalCatalogClips = Schema.decodeUnknownEffect(
+  Schema.Array(CanonicalCatalogClip),
+);
 
 const beats = [
   "The signal behind the headline",
