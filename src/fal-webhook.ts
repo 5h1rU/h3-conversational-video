@@ -1,11 +1,27 @@
 import { Effect, Schema } from "effect";
-import { WebhookAuthorizationError } from "./services";
+import { FalWebhookJsonWire } from "./domain";
+import { ProviderPayloadError, WebhookAuthorizationError } from "./services";
 
 const FalJwks = Schema.Struct({
   keys: Schema.Array(Schema.Struct({ x: Schema.NonEmptyString })),
 });
 const decodeJwks = Schema.decodeUnknownSync(FalJwks);
 const decodeTimestamp = Schema.decodeUnknownSync(Schema.NumberFromString);
+const decodeFalWebhookJson = Schema.decodeUnknownEffect(FalWebhookJsonWire);
+
+export const decodeFalWebhookBody = Effect.fn("decodeFalWebhookBody")(
+  (rawBody: Uint8Array) =>
+    decodeFalWebhookJson(new TextDecoder().decode(rawBody)).pipe(
+      Effect.mapError(
+        () =>
+          new ProviderPayloadError({
+            code: "FAL_WEBHOOK_PAYLOAD_INVALID",
+            message:
+              "fal webhook payload did not match the expected wire schema",
+          }),
+      ),
+    ),
+);
 
 function fromHex(value: string): Uint8Array {
   if (!/^[0-9a-f]+$/i.test(value) || value.length % 2 !== 0)
@@ -113,5 +129,17 @@ export const verifyFalWebhook = Effect.fn("verifyFalWebhook")(
         new WebhookAuthorizationError({ message: String(cause) }),
     });
     return verified;
+  },
+);
+
+export const verifyAndDecodeFalWebhook = Effect.fn("verifyAndDecodeFalWebhook")(
+  function* (input: {
+    readonly headers: Headers;
+    readonly rawBody: Uint8Array;
+    readonly nowEpochSeconds: number;
+  }) {
+    const verified = yield* verifyFalWebhook(input);
+    const webhook = yield* decodeFalWebhookBody(input.rawBody);
+    return { verified, webhook };
   },
 );

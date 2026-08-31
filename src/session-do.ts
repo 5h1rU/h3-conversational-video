@@ -146,6 +146,22 @@ export class SessionDurableObject extends DurableObject<Env> {
     );
   }
 
+  async canAcceptResult(branchId: BranchId): Promise<boolean> {
+    return Effect.runPromise(
+      SessionRepository.use((repository) => repository.read()).pipe(
+        Effect.map(
+          (state) =>
+            state.branchId === branchId &&
+            (state.branchPhase === "planned" ||
+              state.branchPhase === "generating") &&
+            state.deadlineAt !== null &&
+            state.deadlineAt > Date.now(),
+        ),
+        Effect.provide(this.repositoryLayer()),
+      ),
+    );
+  }
+
   async markGenerating(branchId: BranchId): Promise<SessionStateEncoded> {
     const state = await Effect.runPromise(
       SessionRepository.use((repository) =>

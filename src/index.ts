@@ -1,12 +1,8 @@
 import { Effect, Predicate } from "effect";
-import {
-  decodeBranchGenerationJob,
-  decodeFalWebhookPayload,
-  decodeSessionState,
-} from "./domain";
+import { decodeBranchGenerationJob, decodeSessionState } from "./domain";
 import { demoHtml, fixtureSvg } from "./demo";
 import { errorResponse, AppError } from "./errors";
-import { verifyFalWebhook } from "./fal-webhook";
+import { verifyAndDecodeFalWebhook } from "./fal-webhook";
 import {
   appConfigLive,
   artifactStoreLive,
@@ -167,15 +163,12 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         413,
       );
     const rawBody = new Uint8Array(await request.arrayBuffer());
-    const verified = await Effect.runPromise(
-      verifyFalWebhook({
+    const { verified, webhook } = await Effect.runPromise(
+      verifyAndDecodeFalWebhook({
         headers: request.headers,
         rawBody,
         nowEpochSeconds: Math.floor(Date.now() / 1000),
       }),
-    );
-    const webhook = await Effect.runPromise(
-      decodeFalWebhookPayload(JSON.parse(new TextDecoder().decode(rawBody))),
     );
     const config = await Effect.runPromise(
       AppConfig.use((service) => Effect.succeed(service)).pipe(

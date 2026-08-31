@@ -49,6 +49,13 @@ export class WebhookAuthorizationError extends Schema.TaggedError<WebhookAuthori
   "WebhookAuthorizationError",
   { message: Schema.String },
 ) {}
+export class ProviderPayloadError extends Schema.TaggedError<ProviderPayloadError>()(
+  "ProviderPayloadError",
+  {
+    code: Schema.Literal("FAL_WEBHOOK_PAYLOAD_INVALID"),
+    message: Schema.String,
+  },
+) {}
 export class StaleGenerationError extends Schema.TaggedError<StaleGenerationError>()(
   "StaleGenerationError",
   { message: Schema.String },
@@ -157,6 +164,10 @@ export class GenerationProvider extends Context.Service<
 export class SessionPublisher extends Context.Service<
   SessionPublisher,
   {
+    canAccept(
+      sessionId: SessionId,
+      branchId: BranchId,
+    ): Effect.Effect<boolean, StorageError>;
     markGenerating(
       sessionId: SessionId,
       branchId: BranchId,

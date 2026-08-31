@@ -40,6 +40,7 @@ describe("Session Durable Object ordering authority", () => {
     expect(branchId).not.toBeNull();
     if (branchId === null) throw new Error("branch id missing");
     const decodedBranchId = Schema.decodeUnknownSync(BranchId)(branchId);
+    expect(await stub.canAcceptResult(decodedBranchId)).toBe(true);
     await stub.markGenerating(decodedBranchId);
     const artifact = {
       artifactId: Schema.decodeUnknownSync(ArtifactId)(
@@ -54,6 +55,7 @@ describe("Session Durable Object ordering authority", () => {
     const published = await stub.publishBranch(decodedBranchId, artifact);
     expect(published.playlistRevision).toBe(2);
     expect(published.branchPhase).toBe("ready");
+    expect(await stub.canAcceptResult(decodedBranchId)).toBe(false);
     const playlist = await stub.getPlaylist();
     const sources = playlist.entries.map((clip) => clip.source);
     expect(sources.indexOf("branch")).toBeGreaterThan(-1);
@@ -93,6 +95,9 @@ describe("Session Durable Object ordering authority", () => {
     const state = await stub.getState();
     const playlist = await stub.getPlaylist();
     expect(state.branchPhase).toBe("failed");
+    expect(
+      await stub.canAcceptResult(Schema.decodeUnknownSync(BranchId)(branchId)),
+    ).toBe(false);
     expect(state.playlistRevision).toBe(1);
     expect(playlist.entries).toHaveLength(144);
     expect(playlist.entries.every((clip) => clip.source === "canonical")).toBe(

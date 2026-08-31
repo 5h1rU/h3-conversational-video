@@ -354,6 +354,11 @@ export function sessionPublisherLive(
   return Layer.succeed(
     SessionPublisher,
     SessionPublisher.of({
+      canAccept: (sessionId, branchId) =>
+        Effect.tryPromise({
+          try: () => namespace.getByName(sessionId).canAcceptResult(branchId),
+          catch: (cause) => storageError("sessionPublisher.canAccept", cause),
+        }),
       markGenerating: (sessionId, branchId) =>
         Effect.tryPromise({
           try: async () =>

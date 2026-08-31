@@ -132,25 +132,51 @@ export class BranchGenerationJob extends Schema.Class<BranchGenerationJob>(
 }) {}
 export type BranchGenerationJobEncoded = typeof BranchGenerationJob.Encoded;
 
-const FalVideo = Schema.Struct({
-  url: Schema.URL,
+const FalHttpsMediaUrl = Schema.URLFromString.check(
+  Schema.makeFilter(
+    (url) =>
+      url.protocol === "https:" &&
+      (url.hostname === "fal.media" || url.hostname.endsWith(".fal.media"))
+        ? undefined
+        : "Expected a fal CDN HTTPS media URL",
+    { expected: "a fal CDN HTTPS media URL" },
+  ),
+);
+
+const FalVideoWire = Schema.Struct({
+  url: FalHttpsMediaUrl,
   content_type: Schema.optional(Schema.String),
   file_name: Schema.optional(Schema.String),
   file_size: Schema.optional(Schema.Int),
 });
-const FalPayload = Schema.Struct({
-  video: FalVideo,
-  expanded_prompt: Schema.optional(Schema.String),
+const FalSuccessPayloadWire = Schema.Struct({
+  video: FalVideoWire,
+  expanded_prompt: Schema.optional(Schema.NullOr(Schema.String)),
 });
-export class FalWebhookPayload extends Schema.Class<FalWebhookPayload>(
-  "h3/FalWebhookPayload",
-)({
+const FalWebhookEnvelopeWire = {
   request_id: Schema.NonEmptyString,
   gateway_request_id: Schema.optional(Schema.String),
-  status: Schema.Literals(["OK", "ERROR"]),
-  payload: Schema.optional(Schema.NullOr(FalPayload)),
-  error: Schema.optional(Schema.String),
-}) {}
+} as const;
+
+/** fal's JSON wire envelope. URL strings decode to URL values at this boundary. */
+export const FalWebhookPayloadWire = Schema.Union([
+  Schema.Struct({
+    ...FalWebhookEnvelopeWire,
+    status: Schema.Literal("OK"),
+    payload: Schema.optional(Schema.NullOr(FalSuccessPayloadWire)),
+    payload_error: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({
+    ...FalWebhookEnvelopeWire,
+    status: Schema.Literal("ERROR"),
+    payload: Schema.optional(Schema.Unknown),
+    error: Schema.optional(Schema.String),
+  }),
+]);
+export type FalWebhookPayload = typeof FalWebhookPayloadWire.Type;
+export type FalWebhookPayloadEncoded = typeof FalWebhookPayloadWire.Encoded;
+
+export const FalWebhookJsonWire = Schema.fromJsonString(FalWebhookPayloadWire);
 
 export const decodeCreateSessionPayload =
   Schema.decodeUnknownEffect(CreateSessionPayload);
@@ -160,8 +186,9 @@ export const decodeBranchGenerationJob =
   Schema.decodeUnknownEffect(BranchGenerationJob);
 export const encodeBranchGenerationJob =
   Schema.encodeEffect(BranchGenerationJob);
-export const decodeFalWebhookPayload =
-  Schema.decodeUnknownEffect(FalWebhookPayload);
+export const decodeFalWebhookPayload = Schema.decodeUnknownEffect(
+  FalWebhookPayloadWire,
+);
 
 export type ClipSource = "canonical" | "branch" | "reentry";
 export interface ClipQueueEntry {

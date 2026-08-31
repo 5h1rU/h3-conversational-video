@@ -121,6 +121,7 @@ describe("fal submission failure policy", () => {
       Layer.succeed(
         SessionPublisher,
         SessionPublisher.of({
+          canAccept: () => Effect.succeed(true),
           markGenerating: () => Effect.succeed(state),
           publish: () => Effect.succeed(state),
           fail: () =>

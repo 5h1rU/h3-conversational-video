@@ -52,14 +52,27 @@ export const ingestProviderResult = Effect.fn("ingestProviderResult")(
       );
       return { kind: "failed" as const };
     }
+    const canAccept = yield* publisher.canAccept(job.sessionId, job.branchId);
+    if (!canAccept) {
+      yield* audit.markFailed(job.jobId, "FAL_RESULT_AFTER_DEADLINE", at);
+      return {
+        kind: "discarded" as const,
+        code: "FAL_RESULT_AFTER_DEADLINE" as const,
+      };
+    }
     const video = input.webhook.payload?.video;
     if (!video) {
-      return yield* new ProviderError({
-        operation: "webhook.payload",
-        code: "FAL_WEBHOOK_VIDEO_MISSING",
-        message: "Successful fal webhook did not contain a video",
-        retryable: false,
-      });
+      yield* audit.markFailed(job.jobId, "FAL_WEBHOOK_VIDEO_MISSING", at);
+      yield* publisher.fail(
+        job.sessionId,
+        job.branchId,
+        input.webhook.payload_error ??
+          "Successful fal webhook did not contain a video",
+      );
+      return {
+        kind: "failed" as const,
+        code: "FAL_WEBHOOK_VIDEO_MISSING" as const,
+      };
     }
     const candidate = yield* provider.fetchResult({
       url: video.url,

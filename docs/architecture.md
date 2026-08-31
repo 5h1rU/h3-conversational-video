@@ -34,6 +34,8 @@ Queue delivery and provider completion may happen more than once or out of order
 
 `src/fal-provider.ts` is the replaceable provider request boundary. Its schema-checked `h3-max-cost-first/1` profile compiles a deterministic generation plan into exactly five seconds, `480P`, balanced prompt expansion, `16:9`, and safety checking. Sync/base64 response modes are intentionally absent so live work stays on the asynchronous queue/webhook path. Pricing is deliberately not part of this runtime contract because fal rates are volatile and must be checked before paid tests.
 
+`src/domain.ts` separately models fal's encoded webhook envelope and its decoded provider data. The wire codec validates the JSON string in `payload.video.url`, transforms it to an HTTPS `URL`, and preserves documented nullable fields such as `expanded_prompt`. Signature verification runs over the raw bytes before this decode. Late results are terminal audit events: the Session Durable Object reports whether its active branch can still accept publication, so expired callbacks are acknowledged without media download, R2 commit, or timeline mutation.
+
 ## Intentionally not abstracted
 
 - Durable Object constructor/migration, SQLite `transactionSync`, alarms, RPC, and WebSocket Hibernation remain native. Generic repositories must not weaken the one-writer guarantee.
