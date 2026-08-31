@@ -35,6 +35,7 @@ export class FalH3MaxRequest extends Schema.Class<FalH3MaxRequest>(
   prompt_expansion_mode: Schema.Literal("balanced"),
   aspect_ratio: Schema.optional(Schema.Literal("16:9")),
   image_url: Schema.optional(Schema.URLFromString),
+  end_image_url: Schema.optional(Schema.URLFromString),
 }) {}
 
 export const encodeFalH3MaxRequest = Schema.encodeSync(FalH3MaxRequest);
@@ -53,7 +54,12 @@ export function compileFalH3MaxRequest(
       prompt_expansion_mode: profile.promptExpansionMode,
       ...(plan.continuityStartImageUrl === null
         ? { aspect_ratio: profile.aspectRatio }
-        : { image_url: plan.continuityStartImageUrl }),
+        : {
+            image_url: plan.continuityStartImageUrl,
+            ...(plan.continuityEndImageUrl === null
+              ? {}
+              : { end_image_url: plan.continuityEndImageUrl }),
+          }),
     }),
   );
 }

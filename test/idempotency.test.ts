@@ -56,7 +56,9 @@ describe("asynchronous delivery idempotency", () => {
       clipId,
       question: "Question",
       state,
+      branchStartAnchor: "anchor-001",
       rejoinAnchor: "anchor-005",
+      continuityBaseUrl: new URL("https://prototype.example"),
     });
     const job = new BranchGenerationJob({
       jobId: "job-idempotency",

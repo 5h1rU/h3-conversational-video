@@ -27,7 +27,9 @@ describe("deterministic generation plan compiler", () => {
       clipId: Schema.decodeUnknownSync(ClipId)("clip-compiler"),
       question: "Why does the buffer matter?",
       state,
+      branchStartAnchor: "anchor-001",
       rejoinAnchor: "anchor-007",
+      continuityBaseUrl: new URL("https://prototype.example"),
     };
     const first = compileGenerationPlan(input);
     const second = compileGenerationPlan(input);
@@ -35,10 +37,20 @@ describe("deterministic generation plan compiler", () => {
     expect(first.character.primary).toBe("Mara Vale");
     expect(first.world.show).toBe("The Signal Room");
     expect(first.session.rejoinAnchor).toBe("anchor-007");
+    expect(first.session.branchStartAnchor).toBe("anchor-001");
+    expect(first.compilerVersion).toBe("h3-compiler/2");
+    expect(first.continuityStartImageUrl?.href).toBe(
+      "https://prototype.example/v1/canonical/assets/messi-context-end.png",
+    );
+    expect(first.continuityEndImageUrl).toEqual(first.continuityStartImageUrl);
     expect(first.shot.purpose).toBe("answer-viewer-question");
     expect(first.resolvedPrompt).toContain("[CHARACTER]");
     expect(first.resolvedPrompt).toContain("[WORLD]");
     expect(first.resolvedPrompt).toContain("[SESSION]");
     expect(first.resolvedPrompt).toContain("[SHOT]");
+    expect(first.resolvedPrompt).toContain("[INGRESS]");
+    expect(first.resolvedPrompt).toContain("[ANSWER]");
+    expect(first.resolvedPrompt).toContain("[EGRESS]");
+    expect(first.resolvedPrompt).toContain("exact pose restoration");
   });
 });

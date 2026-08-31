@@ -43,9 +43,11 @@ describe("Session Durable Object ordering authority", () => {
     expect((await stub.getPlaylist()).entries).toEqual(canonicalEntries);
 
     const accepted = await stub.acceptEvent({
-      ...event("sports-event-0001", 5_000),
+      ...event("sports-event-0001", 0),
       text: "What made Messi's international career distinctive?",
     });
+    expect(accepted.state.canonicalPlayheadAnchor).toBe("anchor-001");
+    expect(accepted.state.rejoinAnchor).toBe("anchor-002");
     const branchId = accepted.state.branchId;
     if (branchId === null) throw new Error("branch id missing");
     const decodedBranchId = Schema.decodeUnknownSync(BranchId)(branchId);

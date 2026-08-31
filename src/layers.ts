@@ -183,6 +183,9 @@ export function sessionRepositoryLive(
               const rejoinIndex = Number(
                 input.plan.session.rejoinAnchor.slice(-3),
               );
+              const branchStartIndex = Number(
+                input.plan.session.branchStartAnchor.slice(-3),
+              );
               const branchFinished =
                 state.branchPhase === "ready" &&
                 state.rejoinAnchor !== null &&
@@ -200,7 +203,7 @@ export function sessionRepositoryLive(
               const nextState = decodeSessionState({
                 ...state,
                 stateVersion: state.stateVersion + 1,
-                canonicalPlayheadAnchor: anchorForIndex(playbackIndex),
+                canonicalPlayheadAnchor: anchorForIndex(branchStartIndex),
                 bufferDepthMs: BUFFER_TARGET_MS,
                 branchPhase: "planned",
                 branchId: input.branchId,
@@ -225,7 +228,7 @@ export function sessionRepositoryLive(
                   sessionId: state.sessionId,
                   branchId: input.branchId,
                   clipId: input.clipId,
-                  desiredOrdinal: playbackIndex * 10 + 1,
+                  desiredOrdinal: branchStartIndex * 10 + 1,
                   stateVersion: nextState.stateVersion,
                   deadlineAt: input.deadlineAt,
                   plan: input.plan,
@@ -1070,7 +1073,8 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
               branch_id: string;
               clip_id: string;
               state_version: number;
-              prompt_compiler_version: "h3-compiler/1" | "h3-sports-compiler/1";
+              prompt_compiler_version:
+                "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
             }>();
           if (!row) return null;
           return Schema.decodeUnknownSync(
@@ -1082,6 +1086,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
               stateVersion: Schema.Int.pipe(Schema.brand("StateVersion")),
               promptCompilerVersion: Schema.Literals([
                 "h3-compiler/1",
+                "h3-compiler/2",
                 "h3-sports-compiler/1",
               ]),
             }),

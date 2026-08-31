@@ -86,7 +86,8 @@ export interface ArtifactCommitInput {
   readonly contentType: "video/mp4" | "image/svg+xml";
   readonly durationMs: 5_000;
   readonly providerRequestId: string;
-  readonly promptCompilerVersion: "h3-compiler/1" | "h3-sports-compiler/1";
+  readonly promptCompilerVersion:
+    "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
 }
 
 export interface CommittedArtifact {
@@ -162,7 +163,8 @@ export class GenerationProvider extends Context.Service<
       readonly clipId: ClipId;
       readonly branchId: BranchId;
       readonly providerRequestId: string;
-      readonly promptCompilerVersion: "h3-compiler/1" | "h3-sports-compiler/1";
+      readonly promptCompilerVersion:
+        "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
     }): Effect.Effect<ArtifactCommitInput, ProviderError>;
   }
 >()("h3/services/GenerationProvider") {}
@@ -238,7 +240,7 @@ export class AuditLedger extends Context.Service<
         readonly clipId: ClipId;
         readonly stateVersion: StateVersion;
         readonly promptCompilerVersion:
-          "h3-compiler/1" | "h3-sports-compiler/1";
+          "h3-compiler/1" | "h3-compiler/2" | "h3-sports-compiler/1";
       } | null,
       StorageError
     >;

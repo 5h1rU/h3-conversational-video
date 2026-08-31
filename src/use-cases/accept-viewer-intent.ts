@@ -18,6 +18,7 @@ const decodeClipId = Schema.decodeUnknownEffect(ClipId);
 
 export const acceptViewerIntent = Effect.fn("acceptViewerIntent")(function* (
   event: ViewerEventPayload,
+  publicBaseUrl: string,
 ) {
   const repository = yield* SessionRepository;
   const queue = yield* GenerationQueue;
@@ -35,7 +36,13 @@ export const acceptViewerIntent = Effect.fn("acceptViewerIntent")(function* (
   );
   const jobId = yield* ids.next;
   const now = yield* Clock.currentTimeMillis;
-  const plan = yield* planBranch({ branchId, clipId, state, event });
+  const plan = yield* planBranch({
+    branchId,
+    clipId,
+    state,
+    event,
+    publicBaseUrl,
+  });
   const reserved = yield* repository.reserveBranch({
     event,
     branchId,

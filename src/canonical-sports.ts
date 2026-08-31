@@ -127,6 +127,7 @@ export function compileCanonicalSportsPlan(
   const session = {
     question: "",
     currentAnchor: spec.anchor,
+    branchStartAnchor: spec.anchor,
     rejoinAnchor: spec.anchor,
   };
   const shot = {
@@ -159,6 +160,7 @@ export function compileCanonicalSportsPlan(
     seed: deterministicSeed(`${SPORTS_EPISODE_ID}:${payload.slot}`),
     providerModel: "minimax/h3-max/image-to-video",
     continuityStartImageUrl: payload.continuityStartImageUrl,
+    continuityEndImageUrl: null,
     packageBeats: ["canonical"],
     character,
     world,

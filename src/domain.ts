@@ -114,6 +114,7 @@ export const WorldContext = Schema.Struct({
 export const GenerationSessionContext = Schema.Struct({
   question: Schema.String,
   currentAnchor: Schema.String,
+  branchStartAnchor: Schema.String,
   rejoinAnchor: Schema.String,
 });
 export const ShotInstruction = Schema.Struct({
@@ -128,7 +129,11 @@ export const ShotInstruction = Schema.Struct({
 export class GenerationPlan extends Schema.Class<GenerationPlan>(
   "h3/GenerationPlan",
 )({
-  compilerVersion: Schema.Literals(["h3-compiler/1", "h3-sports-compiler/1"]),
+  compilerVersion: Schema.Literals([
+    "h3-compiler/1",
+    "h3-compiler/2",
+    "h3-sports-compiler/1",
+  ]),
   clipId: ClipId,
   branchId: BranchId,
   durationSeconds: Schema.Literal(5),
@@ -138,6 +143,7 @@ export class GenerationPlan extends Schema.Class<GenerationPlan>(
     "minimax/h3-max/image-to-video",
   ]),
   continuityStartImageUrl: Schema.NullOr(Schema.URLFromString),
+  continuityEndImageUrl: Schema.NullOr(Schema.URLFromString),
   packageBeats: Schema.Array(
     Schema.Literals(["canonical", "ingress", "answer", "egress"]),
   ),

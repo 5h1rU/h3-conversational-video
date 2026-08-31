@@ -56,7 +56,9 @@ function generationFixture(): {
       clipId,
       question: "Question",
       state,
+      branchStartAnchor: "anchor-001",
       rejoinAnchor: "anchor-005",
+      continuityBaseUrl: new URL("https://prototype.example"),
     }),
   });
   return { job, state };

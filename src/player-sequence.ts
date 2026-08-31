@@ -76,14 +76,14 @@ export function selectNextClipId(
   if (entries.length === 0) return null;
   const currentIndex = entries.findIndex((entry) => entry.id === currentClipId);
   if (currentIndex < 0) return entries[0]?.id ?? null;
-  const current = entries[currentIndex];
-  if (current?.source === "canonical") {
-    const pendingBranch = entries.find(
-      (entry) => entry.source === "branch" && !completedBranchIds.has(entry.id),
-    );
-    if (pendingBranch) return pendingBranch.id;
+  for (let offset = 1; offset <= entries.length; offset += 1) {
+    const candidate = entries[(currentIndex + offset) % entries.length];
+    if (!candidate) continue;
+    if (candidate.source === "branch" && completedBranchIds.has(candidate.id))
+      continue;
+    return candidate.id;
   }
-  return entries[(currentIndex + 1) % entries.length]?.id ?? null;
+  return null;
 }
 
 export function selectNextPlayableClipId(

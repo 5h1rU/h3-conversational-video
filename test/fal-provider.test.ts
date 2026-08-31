@@ -50,7 +50,11 @@ function generationJob(): BranchGenerationJob {
       clipId,
       question: "Why does the buffer matter?",
       state,
+      branchStartAnchor: "anchor-001",
       rejoinAnchor: "anchor-005",
+      continuityBaseUrl: new URL(
+        "https://h3-conversational-video-prototype.yo-617.workers.dev",
+      ),
     }),
   });
 }
@@ -82,6 +86,8 @@ describe("fal H3 Max cost-first request", () => {
       enable_safety_checker: true,
       prompt_expansion_mode: "balanced",
       image_url:
+        "https://h3-conversational-video-prototype.yo-617.workers.dev/v1/canonical/assets/messi-context-end.png",
+      end_image_url:
         "https://h3-conversational-video-prototype.yo-617.workers.dev/v1/canonical/assets/messi-context-end.png",
     };
     let capturedUrl = "";

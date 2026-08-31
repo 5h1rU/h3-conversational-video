@@ -14,13 +14,23 @@ const canonicalBefore: SequencedClip = {
   id: "canonical-before",
   source: "canonical",
 };
+const canonicalContext: SequencedClip = {
+  id: "canonical-context",
+  source: "canonical",
+};
 const branch: SequencedClip = { id: "branch-once", source: "branch" };
 const reentry: SequencedClip = { id: "reentry-once", source: "reentry" };
 const canonicalAfter: SequencedClip = {
   id: "canonical-after",
   source: "canonical",
 };
-const published = [canonicalBefore, branch, reentry, canonicalAfter];
+const published = [
+  canonicalBefore,
+  canonicalContext,
+  branch,
+  reentry,
+  canonicalAfter,
+];
 
 describe("viewer playback sequence", () => {
   it("does not interrupt canonical media when a branch arrives during polling", () => {
@@ -29,6 +39,9 @@ describe("viewer playback sequence", () => {
       canonicalBefore.id,
     );
     expect(selectNextClipId(published, canonicalBefore.id, completed)).toBe(
+      canonicalContext.id,
+    );
+    expect(selectNextClipId(published, canonicalContext.id, completed)).toBe(
       branch.id,
     );
     expect(selectRefreshClipId(published, branch.id, completed)).toBe(
@@ -51,7 +64,12 @@ describe("viewer playback sequence", () => {
   });
 
   it("supports a cost-first branch with ingress, answer, and egress combined", () => {
-    const combined = [canonicalBefore, branch, canonicalAfter];
+    const combined = [
+      canonicalBefore,
+      canonicalContext,
+      branch,
+      canonicalAfter,
+    ];
     const completed = new Set([branch.id]);
     expect(selectNextClipId(combined, branch.id, completed)).toBe(
       canonicalAfter.id,
@@ -129,7 +147,7 @@ describe("viewer playback sequence", () => {
     expect(
       selectNextPlayableClipId(
         published,
-        canonicalBefore.id,
+        canonicalContext.id,
         completed,
         unavailable,
       ),

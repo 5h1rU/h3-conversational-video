@@ -79,9 +79,10 @@ export class SessionDurableObject extends DurableObject<Env> {
       readonly playbackPositionMs: number;
     };
   }> {
+    const publicBaseUrl = this.env.PUBLIC_BASE_URL;
     const program = Effect.gen(function* () {
       const decoded = yield* decodeViewerEventPayload(payload);
-      const outcome = yield* acceptViewerIntent(decoded).pipe(
+      const outcome = yield* acceptViewerIntent(decoded, publicBaseUrl).pipe(
         Effect.map((reserved) => ({ kind: "accepted" as const, reserved })),
         Effect.catchTag("BranchBusy", (error) =>
           SessionRepository.use((repository) => repository.read()).pipe(
