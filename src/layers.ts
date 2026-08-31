@@ -577,7 +577,9 @@ export function generationProviderLive(
       fetchResult: (input) =>
         Effect.tryPromise({
           try: async () => {
-            const response = await fetch(input.url, { redirect: "error" });
+            const response = await fetch(input.url, { redirect: "manual" });
+            if (response.status >= 300 && response.status < 400)
+              throw new Error("fal media download redirected unexpectedly");
             if (!response.ok || !response.body)
               throw new Error(
                 `fal media download failed with ${response.status}`,
@@ -800,11 +802,32 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
         run("audit.claimWebhook", async () => {
           const result = await db
             .prepare(
-              "INSERT OR IGNORE INTO webhook_deliveries (request_id, signature_timestamp, status, received_at) VALUES (?, ?, 'VERIFIED', ?)",
+              `INSERT INTO webhook_deliveries (request_id, signature_timestamp, status, received_at)
+               VALUES (?, ?, 'PROCESSING', ?)
+               ON CONFLICT(request_id) DO UPDATE SET
+                 signature_timestamp = excluded.signature_timestamp,
+                 status = 'PROCESSING',
+                 received_at = excluded.received_at
+               WHERE webhook_deliveries.status IN ('RETRYABLE', 'VERIFIED')
+                  OR (
+                    webhook_deliveries.status = 'PROCESSING'
+                    AND unixepoch(webhook_deliveries.received_at) <= unixepoch(excluded.received_at) - 120
+                  )`,
             )
             .bind(requestId, signatureTimestamp, at)
             .run();
           return result.meta.changes > 0;
+        }),
+      settleWebhook: (requestId, status, at) =>
+        run("audit.settleWebhook", async () => {
+          await db
+            .prepare(
+              `UPDATE webhook_deliveries
+               SET status = ?, received_at = ?
+               WHERE request_id = ? AND status = 'PROCESSING'`,
+            )
+            .bind(status, at, requestId)
+            .run();
         }),
     }),
   );

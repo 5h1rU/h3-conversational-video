@@ -34,59 +34,72 @@ export const ingestProviderResult = Effect.fn("ingestProviderResult")(
       at,
     );
     if (!claimed) return { kind: "duplicate" as const };
-    const job = yield* audit.findJobByProviderRequest(input.webhook.request_id);
-    if (!job) {
-      return yield* new ProviderError({
-        operation: "webhook.correlate",
-        code: "FAL_WEBHOOK_JOB_NOT_FOUND",
-        message: "No expected generation matches the provider request",
-        retryable: false,
+    const processClaimedWebhook = Effect.gen(function* () {
+      const job = yield* audit.findJobByProviderRequest(
+        input.webhook.request_id,
+      );
+      if (!job) {
+        return yield* new ProviderError({
+          operation: "webhook.correlate",
+          code: "FAL_WEBHOOK_JOB_NOT_FOUND",
+          message: "No expected generation matches the provider request",
+          retryable: true,
+        });
+      }
+      if (input.webhook.status === "ERROR") {
+        yield* audit.markFailed(job.jobId, "FAL_WEBHOOK_ERROR", at);
+        yield* publisher.fail(
+          job.sessionId,
+          job.branchId,
+          input.webhook.error ?? "fal generation failed",
+        );
+        yield* audit.settleWebhook(input.verified.requestId, "COMPLETED", at);
+        return { kind: "failed" as const };
+      }
+      const canAccept = yield* publisher.canAccept(job.sessionId, job.branchId);
+      if (!canAccept) {
+        yield* audit.markFailed(job.jobId, "FAL_RESULT_AFTER_DEADLINE", at);
+        yield* audit.settleWebhook(input.verified.requestId, "COMPLETED", at);
+        return {
+          kind: "discarded" as const,
+          code: "FAL_RESULT_AFTER_DEADLINE" as const,
+        };
+      }
+      const video = input.webhook.payload?.video;
+      if (!video) {
+        yield* audit.markFailed(job.jobId, "FAL_WEBHOOK_VIDEO_MISSING", at);
+        yield* publisher.fail(
+          job.sessionId,
+          job.branchId,
+          input.webhook.payload_error ??
+            "Successful fal webhook did not contain a video",
+        );
+        yield* audit.settleWebhook(input.verified.requestId, "COMPLETED", at);
+        return {
+          kind: "failed" as const,
+          code: "FAL_WEBHOOK_VIDEO_MISSING" as const,
+        };
+      }
+      const candidate = yield* provider.fetchResult({
+        url: video.url,
+        clipId: job.clipId,
+        branchId: job.branchId,
+        providerRequestId: input.webhook.request_id,
       });
-    }
-    if (input.webhook.status === "ERROR") {
-      yield* audit.markFailed(job.jobId, "FAL_WEBHOOK_ERROR", at);
-      yield* publisher.fail(
-        job.sessionId,
-        job.branchId,
-        input.webhook.error ?? "fal generation failed",
-      );
-      return { kind: "failed" as const };
-    }
-    const canAccept = yield* publisher.canAccept(job.sessionId, job.branchId);
-    if (!canAccept) {
-      yield* audit.markFailed(job.jobId, "FAL_RESULT_AFTER_DEADLINE", at);
-      return {
-        kind: "discarded" as const,
-        code: "FAL_RESULT_AFTER_DEADLINE" as const,
-      };
-    }
-    const video = input.webhook.payload?.video;
-    if (!video) {
-      yield* audit.markFailed(job.jobId, "FAL_WEBHOOK_VIDEO_MISSING", at);
-      yield* publisher.fail(
-        job.sessionId,
-        job.branchId,
-        input.webhook.payload_error ??
-          "Successful fal webhook did not contain a video",
-      );
-      return {
-        kind: "failed" as const,
-        code: "FAL_WEBHOOK_VIDEO_MISSING" as const,
-      };
-    }
-    const candidate = yield* provider.fetchResult({
-      url: video.url,
-      clipId: job.clipId,
-      branchId: job.branchId,
-      providerRequestId: input.webhook.request_id,
-    });
-    const artifact = yield* validateCommitArtifact(candidate);
-    const state = yield* publishTimeline({
-      sessionId: job.sessionId,
-      branchId: job.branchId,
-      artifact,
-    });
-    yield* audit.markCompleted(job.jobId, artifact.artifactId, at);
-    return { kind: "completed" as const, artifact, state };
+      const artifact = yield* validateCommitArtifact(candidate);
+      const state = yield* publishTimeline({
+        sessionId: job.sessionId,
+        branchId: job.branchId,
+        artifact,
+      });
+      yield* audit.markCompleted(job.jobId, artifact.artifactId, at);
+      yield* audit.settleWebhook(input.verified.requestId, "COMPLETED", at);
+      return { kind: "completed" as const, artifact, state };
+    }).pipe(
+      Effect.tapError(() =>
+        audit.settleWebhook(input.verified.requestId, "RETRYABLE", at),
+      ),
+    );
+    return yield* processClaimedWebhook;
   },
 );

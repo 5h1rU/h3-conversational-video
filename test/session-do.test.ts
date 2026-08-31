@@ -2,7 +2,11 @@ import { env } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { ArtifactId, BranchId } from "../src/domain";
+import {
+  ArtifactId,
+  BRANCH_GENERATION_DEADLINE_MS,
+  BranchId,
+} from "../src/domain";
 import type { SessionDurableObject } from "../src/session-do";
 
 function event(eventId: string, playbackPositionMs = 10_000) {
@@ -27,6 +31,8 @@ describe("Session Durable Object ordering authority", () => {
     expect(accepted.duplicate).toBe(false);
     expect(accepted.state.branchPhase).toBe("planned");
     expect(accepted.state.playlistRevision).toBe(1);
+    expect(accepted.state.deadlineAt).not.toBeNull();
+    expect(BRANCH_GENERATION_DEADLINE_MS).toBe(25_000);
 
     const duplicate = await stub.acceptEvent(event("event-ordering-0001"));
     expect(duplicate.duplicate).toBe(true);

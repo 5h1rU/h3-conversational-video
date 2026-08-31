@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 
 export const BUFFER_TARGET_MS = 20_000;
+export const BRANCH_GENERATION_DEADLINE_MS = 25_000;
 export const CLIP_DURATION_MS = 5_000;
 export const CANONICAL_CLIP_COUNT = 144;
 

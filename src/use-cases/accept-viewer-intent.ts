@@ -1,5 +1,10 @@
 import { Clock, Effect, Schema } from "effect";
-import { BranchId, ClipId, type ViewerEventPayload } from "../domain";
+import {
+  BRANCH_GENERATION_DEADLINE_MS,
+  BranchId,
+  ClipId,
+  type ViewerEventPayload,
+} from "../domain";
 import {
   GenerationQueue,
   IdGenerator,
@@ -37,7 +42,7 @@ export const acceptViewerIntent = Effect.fn("acceptViewerIntent")(function* (
     clipId,
     jobId,
     idempotencyKey: `viewer-event:${event.eventId}`,
-    deadlineAt: now + 15_000,
+    deadlineAt: now + BRANCH_GENERATION_DEADLINE_MS,
     plan,
   });
   if (reserved.job !== null) {

@@ -246,6 +246,11 @@ export class AuditLedger extends Context.Service<
       signatureTimestamp: number,
       at: string,
     ): Effect.Effect<boolean, StorageError>;
+    settleWebhook(
+      requestId: string,
+      status: "COMPLETED" | "RETRYABLE",
+      at: string,
+    ): Effect.Effect<void, StorageError>;
   }
 >()("h3/services/AuditLedger") {}
 

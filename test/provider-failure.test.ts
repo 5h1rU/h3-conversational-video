@@ -116,6 +116,7 @@ describe("fal submission failure policy", () => {
               recorded.push(`audit:${code}`);
             }),
           claimWebhook: () => Effect.succeed(true),
+          settleWebhook: () => Effect.void,
         }),
       ),
       Layer.succeed(

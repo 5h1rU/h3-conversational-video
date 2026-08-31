@@ -129,4 +129,85 @@ describe("fal H3 Max cost-first request", () => {
       providerRequestId: "fal-request-cost-profile",
     });
   });
+
+  it("uses the Workers-supported manual redirect mode for fal media", async () => {
+    const job = generationJob();
+    let redirectMode: RequestInit["redirect"];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        redirectMode = init?.redirect;
+        return Promise.resolve(
+          new Response(new Uint8Array(128), {
+            headers: {
+              "content-type": "video/mp4",
+              "content-length": "128",
+            },
+          }),
+        );
+      }),
+    );
+    const config: AppConfig["Service"] = {
+      environment: "test",
+      providerMode: "fal",
+      publicBaseUrl: "https://prototype.example",
+      falModel: "minimax/h3-max/text-to-video",
+      falKey: "test-only-key",
+    };
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const provider = yield* GenerationProvider;
+        return yield* provider.fetchResult({
+          url: new URL(
+            "https://v3b.fal.media/files/example/generated-video.mp4",
+          ),
+          clipId: job.clipId,
+          branchId: job.branchId,
+          providerRequestId: "fal-request-cost-profile",
+        });
+      }).pipe(Effect.provide(generationProviderLive(config))),
+    );
+
+    expect(redirectMode).toBe("manual");
+    expect(result.body).toHaveLength(128);
+  });
+
+  it("rejects fal media redirects instead of following them", async () => {
+    const job = generationJob();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(null, {
+            status: 302,
+            headers: { location: "https://example.com/generated-video.mp4" },
+          }),
+        ),
+      ),
+    );
+    const config: AppConfig["Service"] = {
+      environment: "test",
+      providerMode: "fal",
+      publicBaseUrl: "https://prototype.example",
+      falModel: "minimax/h3-max/text-to-video",
+      falKey: "test-only-key",
+    };
+
+    await expect(
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const provider = yield* GenerationProvider;
+          return yield* provider.fetchResult({
+            url: new URL(
+              "https://v3b.fal.media/files/example/generated-video.mp4",
+            ),
+            clipId: job.clipId,
+            branchId: job.branchId,
+            providerRequestId: "fal-request-cost-profile",
+          });
+        }).pipe(Effect.provide(generationProviderLive(config))),
+      ),
+    ).rejects.toThrow("redirected unexpectedly");
+  });
 });

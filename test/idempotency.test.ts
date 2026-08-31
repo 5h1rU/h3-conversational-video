@@ -92,6 +92,26 @@ describe("asynchronous delivery idempotency", () => {
             1_788_000_000,
             "2026-08-31T00:00:03.000Z",
           ),
+          webhookRetryable: audit.settleWebhook(
+            "provider-request-1",
+            "RETRYABLE",
+            "2026-08-31T00:00:04.000Z",
+          ),
+          webhookRetry: audit.claimWebhook(
+            "provider-request-1",
+            1_788_000_001,
+            "2026-08-31T00:00:05.000Z",
+          ),
+          webhookCompleted: audit.settleWebhook(
+            "provider-request-1",
+            "COMPLETED",
+            "2026-08-31T00:00:06.000Z",
+          ),
+          webhookAfterCompletion: audit.claimWebhook(
+            "provider-request-1",
+            1_788_000_002,
+            "2026-08-31T00:00:07.000Z",
+          ),
         },
         { concurrency: 1 },
       ),
@@ -101,6 +121,10 @@ describe("asynchronous delivery idempotency", () => {
       queueDuplicate: false,
       webhookFirst: true,
       webhookDuplicate: false,
+      webhookRetryable: undefined,
+      webhookRetry: true,
+      webhookCompleted: undefined,
+      webhookAfterCompletion: false,
     });
   });
 });

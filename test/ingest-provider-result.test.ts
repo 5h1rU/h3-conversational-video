@@ -13,6 +13,7 @@ import {
   ArtifactStore,
   AuditLedger,
   GenerationProvider,
+  ProviderError,
   SessionPublisher,
 } from "../src/services";
 import { ingestProviderResult } from "../src/use-cases/ingest-provider-result";
@@ -101,6 +102,10 @@ function auditLayer(recorded: string[]): Layer.Layer<AuditLedger> {
           recorded.push("d1:claimed");
           return true;
         }),
+      settleWebhook: (_requestId, status) =>
+        Effect.sync(() => {
+          recorded.push(`d1:webhook:${status.toLowerCase()}`);
+        }),
     }),
   );
 }
@@ -173,6 +178,7 @@ describe("provider result ingestion", () => {
       "r2:committed",
       "session:published",
       "d1:completed",
+      "d1:webhook:completed",
     ]);
   });
 
@@ -221,6 +227,57 @@ describe("provider result ingestion", () => {
     expect(recorded).toEqual([
       "d1:claimed",
       "d1:failed:FAL_RESULT_AFTER_DEADLINE",
+      "d1:webhook:completed",
     ]);
+  });
+
+  it("releases a claimed delivery for retry after a transient media failure", async () => {
+    const recorded: string[] = [];
+    const layers = Layer.mergeAll(
+      auditLayer(recorded),
+      Layer.succeed(
+        GenerationProvider,
+        GenerationProvider.of({
+          submit: () => Effect.die("unused"),
+          fetchResult: () =>
+            Effect.fail(
+              new ProviderError({
+                operation: "provider.fetchResult",
+                code: "FAL_RESULT_DOWNLOAD_FAILED",
+                message: "temporary media fetch failure",
+                retryable: true,
+              }),
+            ),
+        }),
+      ),
+      Layer.succeed(
+        ArtifactStore,
+        ArtifactStore.of({
+          validateAndCommit: () => Effect.die("failed media must not commit"),
+        }),
+      ),
+      Layer.succeed(
+        SessionPublisher,
+        SessionPublisher.of({
+          canAccept: () => Effect.succeed(true),
+          markGenerating: () => Effect.succeed(state),
+          publish: () => Effect.die("failed media must not publish"),
+          fail: () => Effect.succeed(state),
+        }),
+      ),
+    );
+
+    await expect(
+      Effect.runPromise(
+        ingestProviderResult({
+          webhook: await decodedWebhook(),
+          verified: {
+            requestId: "provider-request-1",
+            signatureTimestamp: 1_788_200_000,
+          },
+        }).pipe(Effect.provide(layers)),
+      ),
+    ).rejects.toThrow("temporary media fetch failure");
+    expect(recorded).toEqual(["d1:claimed", "d1:webhook:retryable"]);
   });
 });
