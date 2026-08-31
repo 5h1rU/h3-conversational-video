@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "h3-conversational-video-prototype",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "prototype",
+    "PROVIDER_MODE": "fal",
+    "PUBLIC_BASE_URL": "https://h3-conversational-video-prototype.yo-617.workers.dev",
+    "FAL_MODEL": "minimax/h3-max/text-to-video",
+  },
+  "secrets": { "required": ["FAL_KEY"] },
+  "durable_objects": {
+    "bindings": [{ "name": "SESSIONS", "class_name": "SessionDurableObject" }],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SessionDurableObject"] },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "BRANCH_GENERATION",
+        "queue": "h3-branch-generation-prototype",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "h3-branch-generation-prototype",
+        "max_batch_size": 5,
+        "max_batch_timeout": 2,
+        "max_retries": 3,
+        "dead_letter_queue": "h3-branch-generation-dlq-prototype",
+      },
+    ],
+  },
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "h3-media-prototype" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "h3-conversational-video",
+      "database_id": "1a0e6aee-77b6-4235-8b9f-574c6d0a2f60",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+}

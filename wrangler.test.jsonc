@@ -1,0 +1,38 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "h3-conversational-video-prototype-test",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "test",
+    "PROVIDER_MODE": "fake",
+    "PUBLIC_BASE_URL": "http://localhost:8787",
+    "FAL_MODEL": "minimax/h3-max/text-to-video",
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "SESSIONS", "class_name": "SessionDurableObject" }],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SessionDurableObject"] },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "BRANCH_GENERATION",
+        "queue": "h3-branch-generation-prototype-test",
+      },
+    ],
+  },
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "h3-media-prototype-test" },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "h3-conversational-video-test",
+      "database_id": "local-test-placeholder",
+      "migrations_dir": "migrations",
+    },
+  ],
+}

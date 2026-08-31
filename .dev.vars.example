@@ -1,0 +1,2 @@
+# Copy to .dev.vars only when testing the real provider.
+# FAL_KEY=
