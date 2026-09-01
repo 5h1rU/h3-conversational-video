@@ -118,7 +118,7 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "perplexity/sonar",
+      answerPlannerModel: "openai/gpt-4o-mini",
       aiGatewayId: "default",
     };
     await expect(
@@ -171,7 +171,7 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "perplexity/sonar",
+      answerPlannerModel: "openai/gpt-4o-mini",
       aiGatewayId: "default",
     };
 
@@ -221,7 +221,7 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "perplexity/sonar",
+      answerPlannerModel: "openai/gpt-4o-mini",
       aiGatewayId: "default",
     };
 
@@ -266,7 +266,7 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "perplexity/sonar",
+      answerPlannerModel: "openai/gpt-4o-mini",
       aiGatewayId: "default",
     };
 

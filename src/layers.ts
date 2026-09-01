@@ -1,7 +1,7 @@
 import { Effect, Layer, Predicate, Schema } from "effect";
 import {
-  buildSonarAnswerRequest,
-  decodeSonarAnswerResponse,
+  buildCloudflareWebSearchAnswerRequest,
+  decodeCloudflareWebSearchAnswerResponse,
 } from "./answer-planner";
 import {
   anchorForIndex,
@@ -570,7 +570,7 @@ export function answerPlannerLive(
             try {
               response = await ai.run(
                 config.answerPlannerModel,
-                buildSonarAnswerRequest(input),
+                buildCloudflareWebSearchAnswerRequest(input),
                 {
                   gateway: {
                     id: config.aiGatewayId,
@@ -594,7 +594,10 @@ export function answerPlannerLive(
             }
             let plan: GroundedAnswerPlan;
             try {
-              plan = decodeSonarAnswerResponse(response, input.requestedAt);
+              plan = decodeCloudflareWebSearchAnswerResponse(
+                response,
+                input.requestedAt,
+              );
             } catch (cause) {
               throw new AnswerPlanningError({
                 code: "ANSWER_PAYLOAD_INVALID",
@@ -603,7 +606,7 @@ export function answerPlannerLive(
               });
             }
             return {
-              provider: "perplexity" as const,
+              provider: "openai" as const,
               model: config.answerPlannerModel,
               gatewayLogId: ai.aiGatewayLogId,
               plan,
@@ -999,7 +1002,9 @@ export function appConfigLive(env: Env): Layer.Layer<AppConfig> {
           ? env.CANONICAL_ADMIN_TOKEN
           : undefined,
       answerPlannerMode:
-        String(env.ANSWER_PLANNER_MODE) === "fake" ? "fake" : "sonar",
+        String(env.ANSWER_PLANNER_MODE) === "fake"
+          ? "fake"
+          : "cloudflare-web-search",
       answerPlannerModel: env.ANSWER_PLANNER_MODEL,
       aiGatewayId: env.AI_GATEWAY_ID,
     }),

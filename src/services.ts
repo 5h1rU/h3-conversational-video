@@ -206,7 +206,7 @@ export interface AnswerPlanningInput {
 
 export interface AnswerPlanningResult {
   readonly plan: GroundedAnswerPlan;
-  readonly provider: "perplexity" | "fake";
+  readonly provider: "openai" | "fake";
   readonly model: string;
   readonly gatewayLogId: string | null;
 }
@@ -354,7 +354,7 @@ export class AppConfig extends Context.Service<
     readonly falModel: string;
     readonly falKey: string | undefined;
     readonly canonicalAdminToken: string | undefined;
-    readonly answerPlannerMode: "fake" | "sonar";
+    readonly answerPlannerMode: "fake" | "cloudflare-web-search";
     readonly answerPlannerModel: string;
     readonly aiGatewayId: string;
   }

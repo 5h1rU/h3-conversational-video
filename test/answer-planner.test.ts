@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildSonarAnswerRequest,
-  decodeSonarAnswerResponse,
+  buildCloudflareWebSearchAnswerRequest,
+  decodeCloudflareWebSearchAnswerResponse,
 } from "../src/answer-planner";
 
 const content = {
@@ -13,33 +13,64 @@ const content = {
   egress: "That brings us naturally back to her title defense.",
 };
 
-describe("Sonar grounded-answer boundary", () => {
-  it("uses one low-context search request with a strict structured output", () => {
-    const request = buildSonarAnswerRequest({
+function responseWithCitation(
+  url = "https://www.usopen.org/report.html",
+  includeCitation = true,
+  searchStatus = "completed",
+) {
+  return {
+    status: "completed",
+    output: [
+      { type: "web_search_call", status: searchStatus, id: "search-1" },
+      {
+        type: "message",
+        status: "completed",
+        role: "assistant",
+        content: [
+          {
+            type: "output_text",
+            text: JSON.stringify(content),
+            annotations: includeCitation
+              ? [
+                  {
+                    type: "url_citation",
+                    start_index: 0,
+                    end_index: 42,
+                    title: "Official match report",
+                    url,
+                  },
+                ]
+              : [],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("Cloudflare Unified AI grounded-answer boundary", () => {
+  it("uses one low-context OpenAI Responses web-search request", () => {
+    const request = buildCloudflareWebSearchAnswerRequest({
       question: "What was the U.S. Open score?",
       episodeId: "sports-news-2026-08-31",
       currentAnchor: "anchor-001",
       requestedAt: "2026-08-31T20:00:00.000Z",
     });
-    expect(request.web_search_options).toEqual({ search_context_size: "low" });
-    expect(request.search_mode).toBe("web");
-    expect(request.response_format.type).toBe("json_schema");
-    expect(request.max_tokens).toBe(320);
+    expect(request.tools).toEqual([
+      { type: "web_search_preview", search_context_size: "low" },
+    ]);
+    expect(request.tool_choice).toBe("required");
+    expect(request.text.format.type).toBe("json_schema");
+    expect(request.text.format.strict).toBe(true);
+    expect(request.max_output_tokens).toBe(500);
+    expect(request.store).toBe(false);
+    expect(JSON.stringify(request)).not.toContain("messages");
     expect(JSON.stringify(request)).not.toContain("max_turns");
   });
 
-  it("decodes dialogue separately from provider-owned HTTPS evidence", () => {
-    const plan = decodeSonarAnswerResponse(
-      {
-        choices: [{ message: { content: JSON.stringify(content) } }],
-        search_results: [
-          {
-            title: "Official match report",
-            url: "https://www.usopen.org/en_US/news/articles/report.html",
-            date: "2026-08-31",
-          },
-        ],
-      },
+  it("decodes structured dialogue separately from provider citation annotations", () => {
+    const plan = decodeCloudflareWebSearchAnswerResponse(
+      responseWithCitation(),
       "2026-08-31T20:00:00.000Z",
     );
     expect(plan.topic).toBe("us-open");
@@ -49,23 +80,27 @@ describe("Sonar grounded-answer boundary", () => {
 
   it("rejects an asserted answer without evidence or with an unsafe URL", () => {
     expect(() =>
-      decodeSonarAnswerResponse(
-        { choices: [{ message: { content: JSON.stringify(content) } }] },
+      decodeCloudflareWebSearchAnswerResponse(
+        responseWithCitation("https://www.usopen.org/report.html", false),
         "2026-08-31T20:00:00.000Z",
       ),
     ).toThrow("sufficient evidence");
     expect(() =>
-      decodeSonarAnswerResponse(
-        {
-          choices: [{ message: { content: JSON.stringify(content) } }],
-          search_results: [
-            {
-              title: "Unsafe result",
-              url: "http://example.com/result",
-              date: null,
-            },
-          ],
-        },
+      decodeCloudflareWebSearchAnswerResponse(
+        responseWithCitation("http://example.com/result"),
+        "2026-08-31T20:00:00.000Z",
+      ),
+    ).toThrow();
+  });
+
+  it("rejects a response that did not complete a web-search call", () => {
+    expect(() =>
+      decodeCloudflareWebSearchAnswerResponse(
+        responseWithCitation(
+          "https://www.usopen.org/report.html",
+          true,
+          "in_progress",
+        ),
         "2026-08-31T20:00:00.000Z",
       ),
     ).toThrow();
