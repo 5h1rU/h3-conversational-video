@@ -532,7 +532,10 @@ export function generationQueueLive(
 const MOONSHOT_CHAT_COMPLETIONS_URL =
   "https://api.moonshot.ai/v1/chat/completions";
 
-async function callMoonshot(apiKey: string, body: unknown): Promise<unknown> {
+export async function callMoonshot(
+  apiKey: string,
+  body: unknown,
+): Promise<unknown> {
   const response = await fetch(MOONSHOT_CHAT_COMPLETIONS_URL, {
     method: "POST",
     headers: {
@@ -540,11 +543,15 @@ async function callMoonshot(apiKey: string, body: unknown): Promise<unknown> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(55_000),
   });
+  if (response.status >= 300 && response.status < 400) {
+    await response.body?.cancel();
+    throw new Error(`Moonshot API redirect rejected (HTTP ${response.status})`);
+  }
   if (!response.ok) {
-    response.body?.cancel().catch(() => undefined);
+    await response.body?.cancel();
     throw new Error(`Moonshot API returned HTTP ${response.status}`);
   }
   return decodeBoundedJsonResponse(response);
