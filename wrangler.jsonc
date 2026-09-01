@@ -11,7 +11,7 @@
     "FAL_MODEL": "minimax/h3-max/text-to-video",
     "ANSWER_PLANNER_MODE": "sonar",
     "ANSWER_PLANNER_MODEL": "perplexity/sonar",
-    "AI_GATEWAY_ID": "default",
+    "AI_GATEWAY_ID": "h3-conversational-video",
   },
   "secrets": { "required": ["FAL_KEY", "CANONICAL_ADMIN_TOKEN"] },
   "ai": { "binding": "AI" },

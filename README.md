@@ -91,7 +91,7 @@ npx wrangler secret put FAL_KEY
 
 ## Grounded answer planning
 
-Production uses `ANSWER_PLANNER_MODE: "sonar"`, `ANSWER_PLANNER_MODEL: "perplexity/sonar"`, the `AI` binding, and the `default` AI Gateway. Cloudflare Unified Billing supplies the third-party model credential, so there is no Perplexity key in this repository or Worker secrets. The Cloudflare account must have AI Gateway Unified Billing enabled and sufficient credits before a live question can be answered. Local and automated test layers remain deterministic and cost-free.
+Production uses `ANSWER_PLANNER_MODE: "sonar"`, `ANSWER_PLANNER_MODEL: "perplexity/sonar"`, the `AI` binding, and the dedicated authenticated `h3-conversational-video` AI Gateway. Current Cloudflare web-search documentation lists an active Perplexity API token as a prerequisite for Sonar. Store that token in this Gateway's **Provider Keys** tab under the `default` alias; the AI binding consults that encrypted BYOK key automatically. Never place it in this repository, `wrangler.jsonc`, `.dev.vars`, or a Worker secret. If Cloudflare later exposes Sonar through Unified Billing for this account, verify that current support and load Gateway credits before relying on it instead. Local and automated test layers remain deterministic and cost-free.
 
 The planner is deliberately a single bounded search-and-answer call, not an open-ended agent. It receives the episode outline and viewer question as untrusted data, returns a schema-validated topic, confidence, exact ingress/answer/egress copy, an information-as-of timestamp, and citations. Model-authored citation URLs are not trusted: the application admits only URLs corroborated by the provider's separate `search_results` evidence. The full plan and AI Gateway log ID are recorded in D1 for audit, but fal.ai receives only the resolved visual/dialogue specification.
 
@@ -113,6 +113,7 @@ Current primary references:
 - [Cloudflare Workers Vitest integration](https://developers.cloudflare.com/workers/testing/vitest-integration/)
 - [Cloudflare AI Gateway Workers binding](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/)
 - [Cloudflare AI Gateway web search](https://developers.cloudflare.com/ai-gateway/usage/web-search/)
+- [Cloudflare AI Gateway stored provider keys](https://developers.cloudflare.com/ai-gateway/configuration/bring-your-own-keys/)
 - [Perplexity Sonar structured outputs and search](https://docs.perplexity.ai/docs/sonar/features)
 
 ## Cloudflare deployment
