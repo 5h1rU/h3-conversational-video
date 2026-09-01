@@ -37,6 +37,7 @@ export const planBranch = Effect.fn("planBranch")(
         branchStartAnchor,
         rejoinAnchor,
         continuityBaseUrl: new URL(input.publicBaseUrl),
+        currentAnchor: anchorForIndex(playbackIndex),
       });
     }),
 );

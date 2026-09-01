@@ -12,6 +12,8 @@ import { errorResponse, AppError } from "./errors";
 import { verifyAndDecodeFalWebhook } from "./fal-webhook";
 import {
   appConfigLive,
+  answerPlanLedgerLive,
+  answerPlannerLive,
   artifactStoreLive,
   auditLedgerLive,
   canonicalCatalogLive,
@@ -407,6 +409,8 @@ const worker = {
         const result = await Effect.runPromise(
           submitGeneration(job).pipe(
             Effect.provide(auditLedgerLive(env.DB)),
+            Effect.provide(answerPlanLedgerLive(env.DB)),
+            Effect.provide(answerPlannerLive(env.AI, config)),
             Effect.provide(artifactStoreLive(env.MEDIA)),
             Effect.provide(generationProviderLive(config)),
             Effect.provide(sessionPublisherLive(env.SESSIONS)),

@@ -1,5 +1,9 @@
 import { Effect, Layer, Predicate, Schema } from "effect";
 import {
+  buildSonarAnswerRequest,
+  decodeSonarAnswerResponse,
+} from "./answer-planner";
+import {
   anchorForIndex,
   ArtifactId,
   BUFFER_TARGET_MS,
@@ -12,8 +16,13 @@ import {
   SessionState,
   decodeSessionState as decodeRpcSessionState,
   MediaDurationMs,
+  GroundedAnswerPlan,
+  GroundingSource,
 } from "./domain";
 import {
+  AnswerPlanLedger,
+  AnswerPlanner,
+  AnswerPlanningError,
   AppConfig,
   ArtifactStore,
   ArtifactValidationError,
@@ -282,6 +291,47 @@ export function sessionRepositoryLive(
               ? cause
               : storageError("session.markGenerating", cause),
         }),
+      placeBranch: (input) =>
+        Effect.try({
+          try: () =>
+            ctx.storage.transactionSync(() => {
+              const state = readSessionState(ctx);
+              if (
+                state.branchId !== input.branchId ||
+                state.branchPhase !== "planned"
+              ) {
+                throw new StaleGenerationError({
+                  message: "Grounded placement no longer matches active branch",
+                });
+              }
+              const startIndex = Number(input.branchStartAnchor.slice(-3));
+              const rejoinIndex = Number(input.rejoinAnchor.slice(-3));
+              if (
+                !Number.isInteger(startIndex) ||
+                !Number.isInteger(rejoinIndex) ||
+                startIndex < 0 ||
+                rejoinIndex !== startIndex + 1 ||
+                rejoinIndex >= canonicalTimeline().length
+              ) {
+                throw new StaleGenerationError({
+                  message:
+                    "Grounded placement is outside the canonical timeline",
+                });
+              }
+              const next = decodeSessionState({
+                ...state,
+                stateVersion: state.stateVersion + 1,
+                canonicalPlayheadAnchor: anchorForIndex(startIndex),
+                rejoinAnchor: anchorForIndex(rejoinIndex),
+              });
+              writeSessionState(ctx, next);
+              return next;
+            }),
+          catch: (cause) =>
+            cause instanceof StaleGenerationError
+              ? cause
+              : storageError("session.placeBranch", cause),
+        }),
       publishBranch: (input) =>
         Effect.try({
           try: () =>
@@ -476,6 +526,102 @@ export function generationQueueLive(
   );
 }
 
+export function answerPlannerLive(
+  ai: Ai,
+  config: AppConfig["Service"],
+): Layer.Layer<AnswerPlanner> {
+  return Layer.succeed(
+    AnswerPlanner,
+    AnswerPlanner.of({
+      plan: (input) =>
+        Effect.tryPromise({
+          try: async () => {
+            if (config.answerPlannerMode === "fake") {
+              const topic = input.question.toLowerCase().includes("open")
+                ? ("us-open" as const)
+                : input.question.toLowerCase().includes("messi")
+                  ? ("messi" as const)
+                  : ("other" as const);
+              return {
+                provider: "fake" as const,
+                model: "deterministic-grounding-fixture/1",
+                gatewayLogId: null,
+                plan: new GroundedAnswerPlan({
+                  plannerVersion: "grounded-answer/1",
+                  canAnswer: true,
+                  topic,
+                  confidence: "high",
+                  answer:
+                    "This is a deterministic local answer used only for development.",
+                  ingress: "Let’s take that question in context.",
+                  egress: "With that clarified, we can continue the story.",
+                  informationAsOf: input.requestedAt,
+                  sources: [
+                    new GroundingSource({
+                      title: "Deterministic local fixture",
+                      url: new URL("https://example.invalid/grounding-fixture"),
+                      publishedAt: null,
+                    }),
+                  ],
+                }),
+              };
+            }
+            let response: unknown;
+            try {
+              response = await ai.run(
+                config.answerPlannerModel,
+                buildSonarAnswerRequest(input),
+                {
+                  gateway: {
+                    id: config.aiGatewayId,
+                    skipCache: true,
+                    collectLog: true,
+                    requestTimeoutMs: 20_000,
+                    retries: { maxAttempts: 1 },
+                    metadata: {
+                      workload: "h3-grounded-answer",
+                      episode: input.episodeId,
+                    },
+                  },
+                },
+              );
+            } catch (cause) {
+              throw new AnswerPlanningError({
+                code: "ANSWER_GATEWAY_FAILED",
+                message: `Grounded answer gateway request failed: ${String(cause)}`,
+                retryable: false,
+              });
+            }
+            let plan: GroundedAnswerPlan;
+            try {
+              plan = decodeSonarAnswerResponse(response, input.requestedAt);
+            } catch (cause) {
+              throw new AnswerPlanningError({
+                code: "ANSWER_PAYLOAD_INVALID",
+                message: `Grounded answer response was invalid: ${String(cause)}`,
+                retryable: false,
+              });
+            }
+            return {
+              provider: "perplexity" as const,
+              model: config.answerPlannerModel,
+              gatewayLogId: ai.aiGatewayLogId,
+              plan,
+            };
+          },
+          catch: (cause) =>
+            cause instanceof AnswerPlanningError
+              ? cause
+              : new AnswerPlanningError({
+                  code: "ANSWER_GATEWAY_FAILED",
+                  message: String(cause),
+                  retryable: false,
+                }),
+        }),
+    }),
+  );
+}
+
 export function sessionPublisherLive(
   namespace: DurableObjectNamespace<SessionDurableObject>,
 ): Layer.Layer<SessionPublisher> {
@@ -495,6 +641,20 @@ export function sessionPublisherLive(
             ),
           catch: (cause) =>
             storageError("sessionPublisher.markGenerating", cause),
+        }),
+      place: (input) =>
+        Effect.tryPromise({
+          try: async () =>
+            decodeRpcSessionState(
+              await namespace
+                .getByName(input.sessionId)
+                .placeBranch(
+                  input.branchId,
+                  input.branchStartAnchor,
+                  input.rejoinAnchor,
+                ),
+            ),
+          catch: (cause) => storageError("sessionPublisher.place", cause),
         }),
       publish: (sessionId, branchId, artifact) =>
         Effect.tryPromise({
@@ -684,6 +844,18 @@ export function generationProviderLive(
       submit: (job) =>
         Effect.tryPromise({
           try: async () => {
+            if (
+              job.plan.shot.purpose === "answer-viewer-question" &&
+              job.plan.grounding === null
+            ) {
+              throw new ProviderError({
+                operation: "provider.submit",
+                code: "ANSWER_PLAN_REQUIRED",
+                message:
+                  "A personalized video cannot be submitted without grounded dialogue",
+                retryable: false,
+              });
+            }
             if (config.providerMode === "fake") {
               const requestId = `fake-${job.idempotencyKey}`;
               const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#10192b"/><text x="64" y="110" fill="#f6b85f" font-size="28">PRIVATE RESPONSE · GENERATED</text><text x="64" y="270" fill="white" font-size="42">${escapeSvg(job.plan.session.question.slice(0, 70))}</text><text x="64" y="390" fill="#bed1e8" font-size="30">Mara answers, then the program rejoins automatically.</text></svg>`;
@@ -826,6 +998,10 @@ export function appConfigLive(env: Env): Layer.Layer<AppConfig> {
         env.CANONICAL_ADMIN_TOKEN.length > 0
           ? env.CANONICAL_ADMIN_TOKEN
           : undefined,
+      answerPlannerMode:
+        String(env.ANSWER_PLANNER_MODE) === "fake" ? "fake" : "sonar",
+      answerPlannerModel: env.ANSWER_PLANNER_MODEL,
+      aiGatewayId: env.AI_GATEWAY_ID,
     }),
   );
 }
@@ -1097,6 +1273,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
                 | "h3-compiler/1"
                 | "h3-compiler/2"
                 | "h3-compiler/3"
+                | "h3-compiler/4"
                 | "h3-sports-compiler/1";
               duration_ms: number;
             }>();
@@ -1112,6 +1289,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
                 "h3-compiler/1",
                 "h3-compiler/2",
                 "h3-compiler/3",
+                "h3-compiler/4",
                 "h3-sports-compiler/1",
               ]),
               durationMs: MediaDurationMs,
@@ -1174,6 +1352,69 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
             )
             .bind(status, at, requestId)
             .run();
+        }),
+    }),
+  );
+}
+
+export function answerPlanLedgerLive(
+  db: D1Database,
+): Layer.Layer<AnswerPlanLedger> {
+  return Layer.succeed(
+    AnswerPlanLedger,
+    AnswerPlanLedger.of({
+      record: (input) =>
+        Effect.tryPromise({
+          try: async () => {
+            const encoded = Schema.encodeSync(GroundedAnswerPlan)(input.plan);
+            const statements = [
+              db
+                .prepare(
+                  `INSERT OR IGNORE INTO answer_plans
+                 (generation_job_id, provider, model, status, topic, confidence, can_answer,
+                  answer_text, ingress_text, egress_text, information_as_of, sources_json,
+                  gateway_log_id, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                )
+                .bind(
+                  input.generationJobId,
+                  input.provider,
+                  input.model,
+                  input.plan.canAnswer ? "GROUNDED" : "UNANSWERED",
+                  input.plan.topic,
+                  input.plan.confidence,
+                  input.plan.canAnswer ? 1 : 0,
+                  input.plan.answer,
+                  input.plan.ingress,
+                  input.plan.egress,
+                  input.plan.informationAsOf,
+                  JSON.stringify(encoded.sources),
+                  input.gatewayLogId,
+                  input.at,
+                ),
+            ];
+            if (
+              input.resolvedPromptCompilerVersion !== null &&
+              input.desiredOrdinal !== null
+            ) {
+              statements.push(
+                db
+                  .prepare(
+                    `UPDATE generation_jobs
+                     SET prompt_compiler_version = ?, desired_ordinal = ?, updated_at = ?
+                     WHERE id = ? AND status = 'QUEUED'`,
+                  )
+                  .bind(
+                    input.resolvedPromptCompilerVersion,
+                    input.desiredOrdinal,
+                    input.at,
+                    input.generationJobId,
+                  ),
+              );
+            }
+            await db.batch(statements);
+          },
+          catch: (cause) => storageError("answerPlanLedger.record", cause),
         }),
     }),
   );

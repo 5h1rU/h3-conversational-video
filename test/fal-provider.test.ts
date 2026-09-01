@@ -4,6 +4,8 @@ import {
   BranchGenerationJob,
   BranchId,
   ClipId,
+  GroundedAnswerPlan,
+  GroundingSource,
   SessionId,
   SessionState,
   StateVersion,
@@ -17,7 +19,7 @@ import { generationProviderLive } from "../src/layers";
 import { compileGenerationPlan } from "../src/prompt-compiler";
 import { GenerationProvider, type AppConfig } from "../src/services";
 
-function generationJob(): BranchGenerationJob {
+function generationJob(grounded = true): BranchGenerationJob {
   const branchId = Schema.decodeUnknownSync(BranchId)("branch-cost-profile");
   const clipId = Schema.decodeUnknownSync(ClipId)("clip-cost-profile");
   const state = Schema.decodeUnknownSync(SessionState)({
@@ -56,6 +58,27 @@ function generationJob(): BranchGenerationJob {
       continuityBaseUrl: new URL(
         "https://h3-conversational-video-prototype.yo-617.workers.dev",
       ),
+      ...(grounded
+        ? {
+            groundedAnswer: new GroundedAnswerPlan({
+              plannerVersion: "grounded-answer/1",
+              canAnswer: true,
+              topic: "other",
+              confidence: "high",
+              answer: "The playback buffer keeps the program continuous.",
+              ingress: "A viewer is asking about the buffer.",
+              egress: "Now let’s continue the program.",
+              informationAsOf: "2026-08-31T00:00:00.000Z",
+              sources: [
+                new GroundingSource({
+                  title: "Test source",
+                  url: new URL("https://example.com/source"),
+                  publishedAt: null,
+                }),
+              ],
+            }),
+          }
+        : {}),
     }),
   });
 }
@@ -84,6 +107,27 @@ describe("fal H3 Max cost-first request", () => {
       safetyCheckerEnabled: true,
       syncModeEnabled: false,
     });
+  });
+
+  it("refuses to spend on an unresolved personalized answer", async () => {
+    const config: AppConfig["Service"] = {
+      environment: "test",
+      providerMode: "fal",
+      publicBaseUrl: "https://prototype.example",
+      falModel: "minimax/h3-max/text-to-video",
+      falKey: "test-only-key",
+      canonicalAdminToken: undefined,
+      answerPlannerMode: "fake",
+      answerPlannerModel: "perplexity/sonar",
+      aiGatewayId: "default",
+    };
+    await expect(
+      Effect.runPromise(
+        GenerationProvider.use((provider) =>
+          provider.submit(generationJob(false)),
+        ).pipe(Effect.provide(generationProviderLive(config))),
+      ),
+    ).rejects.toMatchObject({ code: "ANSWER_PLAN_REQUIRED" });
   });
 
   it("serializes the exact live provider body without sync or base64 output", async () => {
@@ -126,6 +170,9 @@ describe("fal H3 Max cost-first request", () => {
       falModel: "minimax/h3-max/text-to-video",
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
+      answerPlannerMode: "fake",
+      answerPlannerModel: "perplexity/sonar",
+      aiGatewayId: "default",
     };
 
     const submission = await Effect.runPromise(
@@ -173,6 +220,9 @@ describe("fal H3 Max cost-first request", () => {
       falModel: "minimax/h3-max/text-to-video",
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
+      answerPlannerMode: "fake",
+      answerPlannerModel: "perplexity/sonar",
+      aiGatewayId: "default",
     };
 
     const result = await Effect.runPromise(
@@ -215,6 +265,9 @@ describe("fal H3 Max cost-first request", () => {
       falModel: "minimax/h3-max/text-to-video",
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
+      answerPlannerMode: "fake",
+      answerPlannerModel: "perplexity/sonar",
+      aiGatewayId: "default",
     };
 
     await expect(

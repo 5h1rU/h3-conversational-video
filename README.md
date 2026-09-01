@@ -55,8 +55,8 @@ curl -sS http://localhost:8787/v1/sessions/SESSION_ID/playlist
 - The player consumes a replaceable committed clip queue. Dynamic HLS/CMAF is the target adapter after codec/timestamp continuity is proven.
 - The browser fetches the complete session-authorized canonical media set before starting, converts those responses to local object URLs, and uses two layered video elements. The standby clip is loaded and decoded beneath the active clip; an atomic frame-boundary layer swap preserves the prior rendered frame until the next clip is playing. Playlist polling never replaces the active element.
 - The prompt compiler is pure and deterministic. Character, world, session, and shot contexts are explicit; fal.ai receives one resolved specification and has no tools or orchestration authority. Canonical media is stored once in R2 and cataloged in D1, then projected into each session with session-bound media URLs.
-- During the Messi portion, a viewer question is held for the natural audience opening at the end of the second clip. The ordered program then plays Messi headline -> Messi context -> one personalized ingress/answer/egress clip -> US Open headline. The player follows this playlist adjacency exactly; polling cannot pull a pending branch forward.
-- The current slice does not make an LLM call, so AI Gateway is not invoked. A future planning/intent layer belongs behind an Effect service and should use AI Gateway without changing the provider or session-ordering contracts.
+- Each accepted question is grounded by one `perplexity/sonar` request through the Worker AI binding and Cloudflare AI Gateway. The request uses low search context, structured JSON, one attempt, and no cache; only HTTPS sources returned by the provider's top-level search results are accepted as evidence. If the planner cannot produce an evidence-backed answer, the branch fails safely before fal.ai is called and canonical playback continues.
+- Topic placement is semantic rather than tied to the capture instant. A Messi question branches after Messi context and rejoins at US Open; a US Open question branches after the first US Open headline and rejoins at its continuation. The ordered branch owns exact natural ingress, grounded answer, and egress language, while the player follows playlist adjacency exactly and polling cannot pull it forward.
 
 See [docs/architecture.md](docs/architecture.md) for module boundaries, swappable components, and intentionally native Cloudflare invariants.
 
@@ -89,6 +89,14 @@ npx wrangler secret put FAL_KEY
 
 3. Run `npm run types`, `npm run check`, and `npx wrangler deploy`.
 
+## Grounded answer planning
+
+Production uses `ANSWER_PLANNER_MODE: "sonar"`, `ANSWER_PLANNER_MODEL: "perplexity/sonar"`, the `AI` binding, and the `default` AI Gateway. Cloudflare Unified Billing supplies the third-party model credential, so there is no Perplexity key in this repository or Worker secrets. The Cloudflare account must have AI Gateway Unified Billing enabled and sufficient credits before a live question can be answered. Local and automated test layers remain deterministic and cost-free.
+
+The planner is deliberately a single bounded search-and-answer call, not an open-ended agent. It receives the episode outline and viewer question as untrusted data, returns a schema-validated topic, confidence, exact ingress/answer/egress copy, an information-as-of timestamp, and citations. Model-authored citation URLs are not trusted: the application admits only URLs corroborated by the provider's separate `search_results` evidence. The full plan and AI Gateway log ID are recorded in D1 for audit, but fal.ai receives only the resolved visual/dialogue specification.
+
+No sports-data API is required for this first slice. A replaceable `AnswerPlanner` service keeps that option open if later product requirements demand deterministic scores, statistics, or league-wide coverage. Current search-model pricing is intentionally excluded from runtime logic and must be checked immediately before paid use; on 2026-08-31 Perplexity documented a separate per-request search fee in addition to tokens, varying by search-context size.
+
 On 2026-08-31, one controlled live request against the zero-credit account was rejected before fal issued a provider request ID. D1 recorded `FAL_ACCOUNT_REJECTED`, no cost entry was created, the private branch became `failed`, and the revision-1 canonical playlist continued unchanged. Terminal 4xx account/payment/input rejections are acknowledged without provider resubmission; only transient 408/425/429/5xx submission failures are eligible for Queue retry.
 
 fal webhooks are verified before JSON parsing using the four official signature headers, a five-minute timestamp window, raw-body SHA-256, and Ed25519 public keys from fal’s JWKS. A cached-key miss performs one fresh JWKS fetch and verification attempt so normal provider key rotation does not produce a false `401`. The signed request ID must match an expected D1 generation record. The explicit wire schema accepts fal’s JSON URL string and decodes it to an HTTPS `URL` on fal’s documented CDN only at the provider boundary; malformed or unsafe URL values receive a typed `422` response without logging the signed body or media URL. Webhook claims use `PROCESSING`, `RETRYABLE`, and `COMPLETED` states so transient ingestion failures can be redelivered without republishing completed work. fal media downloads use Workers' supported manual redirect mode and reject redirects before reading bytes. The 15-second branch profile has a two-minute asynchronous generation deadline so a longer paid result is not needlessly discarded; canonical playback continues while it renders. A result after that deadline is acknowledged and recorded as `FAL_RESULT_AFTER_DEADLINE`, but is not downloaded, committed to R2, or inserted into the timeline.
@@ -103,6 +111,9 @@ Current primary references:
 - [Cloudflare Queue JavaScript API](https://developers.cloudflare.com/queues/configuration/javascript-apis/)
 - [Cloudflare R2 Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)
 - [Cloudflare Workers Vitest integration](https://developers.cloudflare.com/workers/testing/vitest-integration/)
+- [Cloudflare AI Gateway Workers binding](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/)
+- [Cloudflare AI Gateway web search](https://developers.cloudflare.com/ai-gateway/usage/web-search/)
+- [Perplexity Sonar structured outputs and search](https://docs.perplexity.ai/docs/sonar/features)
 
 ## Cloudflare deployment
 
@@ -136,7 +147,7 @@ The current prototype deployment was validated on 2026-08-31 with remote session
 
 ## Correctness and degradation
 
-Tests cover deterministic canonical planning, the exact 15-second 480P branch request, five-second canonical preservation, voice-first UI and fallback, continuity-asset `HEAD`/`GET`, canonical reuse, atomic branch-package ordering, single-branch enforcement, duplicate viewer event/queue/webhook handling, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, full canonical preloading, standby readiness, double-buffer handoff, player identity stability across polling, media-error continuation, and playlist revision changes. Provider failure or deadline expiry marks the branch failed without changing playlist revision, so canonical playback continues.
+Tests cover deterministic canonical planning, the exact Sonar low-search-context request, evidence and unsafe-URL rejection, topic-aware semantic placement, exact grounded dialogue compilation, the exact 15-second 480P branch request, five-second canonical preservation, voice-first UI and fallback, continuity-asset `HEAD`/`GET`, canonical reuse, atomic branch-package ordering, single-branch enforcement, duplicate viewer event/queue/webhook handling, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, full canonical preloading, standby readiness, double-buffer handoff, player identity stability across polling, media-error continuation, and playlist revision changes. Grounding, provider, or deadline failure marks the branch failed without changing playlist revision, so canonical playback continues.
 
 The simulator uses SVG visual fixtures, not production video. Before replacing it with HLS, run the media proof described in the product document: consecutive MP4 codec/profile/timestamp inspection, first/last-frame continuity, audio normalization, and Safari/iOS plus Chrome/Android playback validation.
 

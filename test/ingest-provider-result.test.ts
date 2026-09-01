@@ -154,6 +154,7 @@ describe("provider result ingestion", () => {
         SessionPublisher.of({
           canAccept: () => Effect.succeed(true),
           markGenerating: () => Effect.succeed(state),
+          place: () => Effect.succeed(state),
           publish: () =>
             Effect.sync(() => {
               recorded.push("session:published");
@@ -208,6 +209,7 @@ describe("provider result ingestion", () => {
         SessionPublisher.of({
           canAccept: () => Effect.succeed(false),
           markGenerating: () => Effect.succeed(state),
+          place: () => Effect.succeed(state),
           publish: () => Effect.die("late result must not publish"),
           fail: () => Effect.succeed(state),
         }),
@@ -266,6 +268,7 @@ describe("provider result ingestion", () => {
         SessionPublisher.of({
           canAccept: () => Effect.succeed(true),
           markGenerating: () => Effect.succeed(state),
+          place: () => Effect.succeed(state),
           publish: () => Effect.die("failed media must not publish"),
           fail: () => Effect.succeed(state),
         }),

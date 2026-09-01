@@ -126,6 +126,7 @@ export function compileCanonicalSportsPlan(
   };
   const session = {
     question: "",
+    episodeId: SPORTS_EPISODE_ID,
     currentAnchor: spec.anchor,
     branchStartAnchor: spec.anchor,
     rejoinAnchor: spec.anchor,
@@ -162,6 +163,7 @@ export function compileCanonicalSportsPlan(
     continuityStartImageUrl: payload.continuityStartImageUrl,
     continuityEndImageUrl: null,
     packageBeats: ["canonical"],
+    grounding: null,
     character,
     world,
     session,

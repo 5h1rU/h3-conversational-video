@@ -119,10 +119,38 @@ export const WorldContext = Schema.Struct({
 });
 export const GenerationSessionContext = Schema.Struct({
   question: Schema.String,
+  episodeId: Schema.NonEmptyString,
   currentAnchor: Schema.String,
   branchStartAnchor: Schema.String,
   rejoinAnchor: Schema.String,
 });
+
+export const AnswerTopic = Schema.Literals(["messi", "us-open", "other"]);
+export type AnswerTopic = typeof AnswerTopic.Type;
+export const AnswerConfidence = Schema.Literals(["low", "medium", "high"]);
+export type AnswerConfidence = typeof AnswerConfidence.Type;
+
+export class GroundingSource extends Schema.Class<GroundingSource>(
+  "h3/GroundingSource",
+)({
+  title: Schema.NonEmptyString,
+  url: Schema.URLFromString,
+  publishedAt: Schema.NullOr(Schema.String),
+}) {}
+
+export class GroundedAnswerPlan extends Schema.Class<GroundedAnswerPlan>(
+  "h3/GroundedAnswerPlan",
+)({
+  plannerVersion: Schema.Literal("grounded-answer/1"),
+  canAnswer: Schema.Boolean,
+  topic: AnswerTopic,
+  confidence: AnswerConfidence,
+  answer: Schema.String,
+  ingress: Schema.String,
+  egress: Schema.String,
+  informationAsOf: Schema.NonEmptyString,
+  sources: Schema.Array(GroundingSource),
+}) {}
 export const ShotInstruction = Schema.Struct({
   purpose: Schema.Literals(["answer-viewer-question", "canonical-segment"]),
   dialogue: Schema.String,
@@ -139,6 +167,7 @@ export class GenerationPlan extends Schema.Class<GenerationPlan>(
     "h3-compiler/1",
     "h3-compiler/2",
     "h3-compiler/3",
+    "h3-compiler/4",
     "h3-sports-compiler/1",
   ]),
   clipId: ClipId,
@@ -154,6 +183,7 @@ export class GenerationPlan extends Schema.Class<GenerationPlan>(
   packageBeats: Schema.Array(
     Schema.Literals(["canonical", "ingress", "answer", "egress"]),
   ),
+  grounding: Schema.NullOr(GroundedAnswerPlan),
   character: CharacterContext,
   world: WorldContext,
   session: GenerationSessionContext,

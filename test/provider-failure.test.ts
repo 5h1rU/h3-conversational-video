@@ -4,6 +4,8 @@ import {
   BranchGenerationJob,
   BranchId,
   ClipId,
+  GroundedAnswerPlan,
+  GroundingSource,
   SessionId,
   SessionState,
   StateVersion,
@@ -11,6 +13,8 @@ import {
 import { classifyFalSubmissionFailure } from "../src/layers";
 import { compileGenerationPlan } from "../src/prompt-compiler";
 import {
+  AnswerPlanLedger,
+  AnswerPlanner,
   ArtifactStore,
   AuditLedger,
   GenerationProvider,
@@ -82,6 +86,38 @@ describe("fal submission failure policy", () => {
     const { job, state } = generationFixture();
     const layers = Layer.mergeAll(
       Layer.succeed(
+        AnswerPlanner,
+        AnswerPlanner.of({
+          plan: (input) =>
+            Effect.succeed({
+              provider: "fake" as const,
+              model: "fake-grounding/1",
+              gatewayLogId: null,
+              plan: new GroundedAnswerPlan({
+                plannerVersion: "grounded-answer/1",
+                canAnswer: true,
+                topic: "other",
+                confidence: "high",
+                answer: "A grounded test answer.",
+                ingress: "Let’s take that question.",
+                egress: "Now back to the program.",
+                informationAsOf: input.requestedAt,
+                sources: [
+                  new GroundingSource({
+                    title: "Test source",
+                    url: new URL("https://example.com/source"),
+                    publishedAt: null,
+                  }),
+                ],
+              }),
+            }),
+        }),
+      ),
+      Layer.succeed(
+        AnswerPlanLedger,
+        AnswerPlanLedger.of({ record: () => Effect.void }),
+      ),
+      Layer.succeed(
         GenerationProvider,
         GenerationProvider.of({
           submit: () =>
@@ -126,6 +162,7 @@ describe("fal submission failure policy", () => {
         SessionPublisher.of({
           canAccept: () => Effect.succeed(true),
           markGenerating: () => Effect.succeed(state),
+          place: () => Effect.succeed(state),
           publish: () => Effect.succeed(state),
           fail: () =>
             Effect.sync(() => {

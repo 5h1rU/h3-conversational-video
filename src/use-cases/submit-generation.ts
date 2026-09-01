@@ -1,6 +1,7 @@
 import { Clock, Effect } from "effect";
 import type { BranchGenerationJob } from "../domain";
 import { AuditLedger, GenerationProvider, SessionPublisher } from "../services";
+import { groundBranch } from "./ground-branch";
 import { publishTimeline } from "./publish-timeline";
 import { validateCommitArtifact } from "./validate-commit-artifact";
 
@@ -15,8 +16,36 @@ export const submitGeneration = Effect.fn("submitGeneration")(function* (
   const claimed = yield* audit.ensureGeneration(job, "fal", at);
   if (!claimed) return { kind: "duplicate" as const };
 
-  yield* publisher.markGenerating(job.sessionId, job.branchId);
-  const submission = yield* provider.submit(job).pipe(
+  let resolvedJob = job;
+  if (job.plan.shot.purpose === "answer-viewer-question") {
+    const planning = yield* groundBranch(job, at).pipe(
+      Effect.map((groundedJob) => ({
+        kind: "grounded" as const,
+        job: groundedJob,
+      })),
+      Effect.catchTag("AnswerPlanningError", (error) =>
+        audit
+          .markFailed(job.jobId, error.code, at)
+          .pipe(
+            Effect.andThen(
+              publisher.fail(job.sessionId, job.branchId, error.message),
+            ),
+            Effect.as({ kind: "rejected" as const, error }),
+          ),
+      ),
+    );
+    if (planning.kind === "rejected") {
+      return {
+        kind: "failed" as const,
+        code: planning.error.code,
+        retryable: false as const,
+      };
+    }
+    resolvedJob = planning.job;
+  }
+
+  yield* publisher.markGenerating(resolvedJob.sessionId, resolvedJob.branchId);
+  const submission = yield* provider.submit(resolvedJob).pipe(
     Effect.tapError((error) =>
       audit
         .markFailed(job.jobId, error.code, at)
@@ -38,7 +67,11 @@ export const submitGeneration = Effect.fn("submitGeneration")(function* (
       code: submission.error.code,
       retryable: false as const,
     };
-  yield* audit.markProviderSubmitted(job, submission.providerRequestId, at);
+  yield* audit.markProviderSubmitted(
+    resolvedJob,
+    submission.providerRequestId,
+    at,
+  );
   if (submission.kind === "submitted") return submission;
 
   const artifact = yield* validateCommitArtifact(submission.artifact).pipe(

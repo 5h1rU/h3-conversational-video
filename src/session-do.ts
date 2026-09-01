@@ -184,6 +184,24 @@ export class SessionDurableObject extends DurableObject<Env> {
     return encodeSessionState(state);
   }
 
+  async placeBranch(
+    branchId: BranchId,
+    branchStartAnchor: string,
+    rejoinAnchor: string,
+  ): Promise<SessionStateEncoded> {
+    const state = await Effect.runPromise(
+      SessionRepository.use((repository) =>
+        repository.placeBranch({
+          branchId,
+          branchStartAnchor,
+          rejoinAnchor,
+        }),
+      ).pipe(Effect.provide(this.repositoryLayer())),
+    );
+    this.broadcast("branch.placed", state);
+    return encodeSessionState(state);
+  }
+
   async getPlaylist() {
     const entries = await Effect.runPromise(
       SessionRepository.use((repository) => repository.playlist()).pipe(

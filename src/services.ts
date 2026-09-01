@@ -9,6 +9,7 @@ import type {
   CompletedCanonicalBuild,
   EventId,
   GenerationPlan,
+  GroundedAnswerPlan,
   MediaDurationMs,
   CanonicalCatalogClip,
   SessionId,
@@ -41,6 +42,18 @@ export class ProviderError extends Schema.TaggedError<ProviderError>()(
   {
     operation: Schema.String,
     code: Schema.String,
+    message: Schema.String,
+    retryable: Schema.Boolean,
+  },
+) {}
+export class AnswerPlanningError extends Schema.TaggedError<AnswerPlanningError>()(
+  "AnswerPlanningError",
+  {
+    code: Schema.Literals([
+      "ANSWER_GATEWAY_FAILED",
+      "ANSWER_PAYLOAD_INVALID",
+      "ANSWER_NOT_GROUNDED",
+    ]),
     message: Schema.String,
     retryable: Schema.Boolean,
   },
@@ -91,6 +104,7 @@ export interface ArtifactCommitInput {
     | "h3-compiler/1"
     | "h3-compiler/2"
     | "h3-compiler/3"
+    | "h3-compiler/4"
     | "h3-sports-compiler/1";
 }
 
@@ -133,6 +147,11 @@ export class SessionRepository extends Context.Service<
     markGenerating(
       branchId: BranchId,
     ): Effect.Effect<SessionState, StaleGenerationError | StorageError>;
+    placeBranch(input: {
+      readonly branchId: BranchId;
+      readonly branchStartAnchor: string;
+      readonly rejoinAnchor: string;
+    }): Effect.Effect<SessionState, StaleGenerationError | StorageError>;
     publishBranch(input: {
       readonly branchId: BranchId;
       readonly artifact: CommittedArtifact;
@@ -171,11 +190,51 @@ export class GenerationProvider extends Context.Service<
         | "h3-compiler/1"
         | "h3-compiler/2"
         | "h3-compiler/3"
+        | "h3-compiler/4"
         | "h3-sports-compiler/1";
       readonly durationMs: MediaDurationMs;
     }): Effect.Effect<ArtifactCommitInput, ProviderError>;
   }
 >()("h3/services/GenerationProvider") {}
+
+export interface AnswerPlanningInput {
+  readonly question: string;
+  readonly episodeId: string;
+  readonly currentAnchor: string;
+  readonly requestedAt: string;
+}
+
+export interface AnswerPlanningResult {
+  readonly plan: GroundedAnswerPlan;
+  readonly provider: "perplexity" | "fake";
+  readonly model: string;
+  readonly gatewayLogId: string | null;
+}
+
+export class AnswerPlanner extends Context.Service<
+  AnswerPlanner,
+  {
+    plan(
+      input: AnswerPlanningInput,
+    ): Effect.Effect<AnswerPlanningResult, AnswerPlanningError>;
+  }
+>()("h3/services/AnswerPlanner") {}
+
+export class AnswerPlanLedger extends Context.Service<
+  AnswerPlanLedger,
+  {
+    record(input: {
+      readonly generationJobId: string;
+      readonly provider: string;
+      readonly model: string;
+      readonly plan: GroundedAnswerPlan;
+      readonly gatewayLogId: string | null;
+      readonly resolvedPromptCompilerVersion: "h3-compiler/4" | null;
+      readonly desiredOrdinal: number | null;
+      readonly at: string;
+    }): Effect.Effect<void, StorageError>;
+  }
+>()("h3/services/AnswerPlanLedger") {}
 
 export class SessionPublisher extends Context.Service<
   SessionPublisher,
@@ -188,6 +247,12 @@ export class SessionPublisher extends Context.Service<
       sessionId: SessionId,
       branchId: BranchId,
     ): Effect.Effect<SessionState, StaleGenerationError | StorageError>;
+    place(input: {
+      readonly sessionId: SessionId;
+      readonly branchId: BranchId;
+      readonly branchStartAnchor: string;
+      readonly rejoinAnchor: string;
+    }): Effect.Effect<SessionState, StaleGenerationError | StorageError>;
     publish(
       sessionId: SessionId,
       branchId: BranchId,
@@ -251,6 +316,7 @@ export class AuditLedger extends Context.Service<
           | "h3-compiler/1"
           | "h3-compiler/2"
           | "h3-compiler/3"
+          | "h3-compiler/4"
           | "h3-sports-compiler/1";
         readonly durationMs: MediaDurationMs;
       } | null,
@@ -288,6 +354,9 @@ export class AppConfig extends Context.Service<
     readonly falModel: string;
     readonly falKey: string | undefined;
     readonly canonicalAdminToken: string | undefined;
+    readonly answerPlannerMode: "fake" | "sonar";
+    readonly answerPlannerModel: string;
+    readonly aiGatewayId: string;
   }
 >()("h3/services/AppConfig") {}
 

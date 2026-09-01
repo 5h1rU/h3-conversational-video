@@ -1,6 +1,7 @@
 import {
   type BranchId,
   type ClipId,
+  type GroundedAnswerPlan,
   GenerationPlan,
   type SessionState,
 } from "./domain";
@@ -15,6 +16,13 @@ function deterministicSeed(value: string): number {
   return hash >>> 0;
 }
 
+function continuityBridgePath(branchStartAnchor: string): string {
+  if (branchStartAnchor === "anchor-002") {
+    return "/v1/canonical/assets/us-open-reentry-end.png";
+  }
+  return "/v1/canonical/assets/messi-context-end.png";
+}
+
 export function compileGenerationPlan(input: {
   branchId: BranchId;
   clipId: ClipId;
@@ -23,7 +31,10 @@ export function compileGenerationPlan(input: {
   branchStartAnchor: string;
   rejoinAnchor: string;
   continuityBaseUrl: URL;
+  groundedAnswer?: GroundedAnswerPlan;
+  currentAnchor?: string;
 }): GenerationPlan {
+  const groundedAnswer = input.groundedAnswer;
   const character = {
     primary: "Mara Vale" as const,
     secondary: "Theo Reyes" as const,
@@ -39,13 +50,16 @@ export function compileGenerationPlan(input: {
   };
   const session = {
     question: input.question,
-    currentAnchor: input.state.canonicalPlayheadAnchor,
+    episodeId: input.state.episodeId,
+    currentAnchor: input.currentAnchor ?? input.state.canonicalPlayheadAnchor,
     branchStartAnchor: input.branchStartAnchor,
     rejoinAnchor: input.rejoinAnchor,
   };
   const shot = {
     purpose: "answer-viewer-question" as const,
-    dialogue: `[INGRESS] The live audience asks: “${input.question}” Mara naturally acknowledges that exact subject in one short clause, using wording such as “A viewer is asking…” or “The audience is asking…” only when it sounds conversational. [ANSWER] She gives one compact, truthful sentence that directly answers it. [EGRESS] She closes the exchange with a brief neutral handoff, without naming or previewing the fixed next story. Never say “we received a question,” repeat the full question, or invent a fact.`,
+    dialogue: groundedAnswer
+      ? `[INGRESS] ${groundedAnswer.ingress} [ANSWER] ${groundedAnswer.answer} [EGRESS] ${groundedAnswer.egress}`
+      : `[INGRESS] The live audience asks: “${input.question}” Mara naturally acknowledges that exact subject in one short clause, using wording such as “A viewer is asking…” or “The audience is asking…” only when it sounds conversational. [ANSWER] She gives one compact, truthful sentence that directly answers it. [EGRESS] She closes the exchange with a brief neutral handoff, without naming or previewing the fixed next story. Never say “we received a question,” repeat the full question, or invent a fact.`,
     framing:
       "Mara foreground left, Theo listening right, eye lines remain on-axis.",
     motion:
@@ -59,18 +73,21 @@ export function compileGenerationPlan(input: {
     `[WORLD] ${world.set} ${world.cameraGrammar} ${world.visualDisclosure}`,
     `[SESSION] Viewer-now=${session.currentAnchor}; branch-start=${session.branchStartAnchor}; rejoin=${session.rejoinAnchor}; viewer=${session.question}`,
     `[SHOT] ${shot.dialogue} ${shot.framing} ${shot.motion} ${shot.audio} End: ${shot.terminalState}`,
+    groundedAnswer
+      ? `[GROUNDING] Speak the supplied ingress, answer, and egress exactly as written. The answer was grounded at ${groundedAnswer.informationAsOf} with ${groundedAnswer.sources.length} validated source(s). Do not add, remove, paraphrase, or invent facts.`
+      : "[GROUNDING] This draft is unresolved and must not be submitted to a live video provider.",
     "[TIMING] Ingress 0.0-2.0s; direct answer 2.0-12.0s; egress and exact pose restoration 12.0-15.0s. One continuous locked two-shot, no cut or camera move. Use the answer window for two or three natural sentences, not rushed delivery.",
-    "[CONTINUITY] The supplied first image is the exact outgoing Messi-context frame. The supplied last image is the exact incoming US Open keyframe. Preserve faces, wardrobe, studio, voices, room tone, camera axis, exposure, and color grade between them.",
+    `[CONTINUITY] The supplied first and last images are the exact shared endpoint frame at ${session.branchStartAnchor}, immediately before ${session.rejoinAnchor}. Begin from it and restore it exactly before the canonical program resumes. Preserve faces, wardrobe, studio, voices, room tone, camera axis, exposure, and color grade throughout.`,
     "Fifteen seconds, 16:9, coherent audiovisual output, safety checker enabled.",
   ].join("\n");
 
   const bridgeKeyframe = new URL(
-    "/v1/canonical/assets/messi-context-end.png",
+    continuityBridgePath(input.branchStartAnchor),
     input.continuityBaseUrl,
   );
 
   return new GenerationPlan({
-    compilerVersion: "h3-compiler/3",
+    compilerVersion: groundedAnswer ? "h3-compiler/4" : "h3-compiler/3",
     clipId: input.clipId,
     branchId: input.branchId,
     durationSeconds: 15,
@@ -81,6 +98,7 @@ export function compileGenerationPlan(input: {
     continuityStartImageUrl: bridgeKeyframe,
     continuityEndImageUrl: bridgeKeyframe,
     packageBeats: ["ingress", "answer", "egress"],
+    grounding: groundedAnswer ?? null,
     character,
     world,
     session,
