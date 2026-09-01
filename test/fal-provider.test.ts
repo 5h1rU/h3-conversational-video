@@ -61,12 +61,13 @@ function generationJob(grounded = true): BranchGenerationJob {
       ...(grounded
         ? {
             groundedAnswer: new GroundedAnswerPlan({
-              plannerVersion: "grounded-answer/1",
+              plannerVersion: "grounded-answer/2",
               canAnswer: true,
               topic: "other",
               confidence: "high",
+              subject: "the playback buffer",
               answer: "The playback buffer keeps the program continuous.",
-              ingress: "A viewer is asking about the buffer.",
+              ingress: "On the playback buffer—",
               egress: "Now let’s continue the program.",
               informationAsOf: "2026-08-31T00:00:00.000Z",
               sources: [
@@ -186,6 +187,11 @@ describe("fal H3 Max cost-first request", () => {
       "https://queue.fal.run/minimax/h3-max/image-to-video?fal_webhook=https%3A%2F%2Fprototype.example%2Fv1%2Fwebhooks%2Ffal",
     );
     expect(capturedBody).toEqual(expectedBody);
+    expect(expectedBody.prompt).toContain(
+      "Original subject=the playback buffer",
+    );
+    expect(expectedBody.prompt).toContain("Why does the buffer matter?");
+    expect(expectedBody.prompt).toContain("On the playback buffer—");
     expect(capturedBody).not.toHaveProperty("sync_mode");
     expect(capturedBody).not.toHaveProperty("response_format");
     expect(capturedBody).not.toHaveProperty("aspect_ratio");

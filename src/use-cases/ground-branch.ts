@@ -85,7 +85,7 @@ export const groundBranch = Effect.fn("groundBranch")(function* (
       sessionId: job.sessionId,
       showId: "signal-room",
       episodeId: job.plan.session.episodeId,
-      showVersion: "grounded-answer/1",
+      showVersion: "grounded-answer/2",
       stateVersion: job.stateVersion,
       canonicalPlayheadAnchor: job.plan.session.currentAnchor,
       bufferDepthMs: 20_000,
@@ -113,7 +113,7 @@ export const groundBranch = Effect.fn("groundBranch")(function* (
     model: result.model,
     plan: result.plan,
     gatewayLogId: result.gatewayLogId,
-    resolvedPromptCompilerVersion: "h3-compiler/5",
+    resolvedPromptCompilerVersion: "h3-compiler/6",
     desiredOrdinal,
     at,
   });

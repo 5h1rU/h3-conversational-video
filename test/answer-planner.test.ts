@@ -18,8 +18,9 @@ const content = {
   canAnswer: true,
   topic: "us-open",
   confidence: "high",
+  subject: "the U.S. Open score",
   answer: "Sabalenka won 6-3, 6-2.",
-  ingress: "On that score—",
+  ingress: "On the U.S. Open score—",
   egress: "Back to her defense.",
   sources: [
     {
@@ -80,6 +81,12 @@ describe("Moonshot Kimi grounded-answer boundary", () => {
     ]);
     expect(request.tool_choice).toBe("auto");
     expect(request.max_tokens).toBe(500);
+    expect(request.messages[0]?.content).toContain(
+      "this answer may play after the program has moved to an unrelated story",
+    );
+    expect(request.messages[0]?.content).toContain(
+      '"subject":{"type":"string","maxLength":48}',
+    );
     expect(JSON.stringify(request)).not.toContain("apiKey");
   });
 
@@ -128,6 +135,7 @@ describe("Moonshot Kimi grounded-answer boundary", () => {
       input.requestedAt,
     );
     expect(plan.topic).toBe("us-open");
+    expect(plan.subject).toBe("the U.S. Open score");
     expect(plan.sources[0]?.url.href).toContain("usopen.org");
     expect(plan.answer).toBe(content.answer);
   });
@@ -152,12 +160,21 @@ describe("Moonshot Kimi grounded-answer boundary", () => {
     ).toThrow();
   });
 
+  it("rejects a delayed answer whose ingress does not name its subject", () => {
+    expect(() =>
+      decodeMoonshotGroundedAnswerResponse(
+        finalResponse({ ...content, ingress: "On that earlier question—" }),
+        input.requestedAt,
+      ),
+    ).toThrow("original question subject");
+  });
+
   it("rejects dialogue that would force rushed seven-second speech", () => {
     expect(() =>
       decodeMoonshotGroundedAnswerResponse(
         finalResponse({
           ...content,
-          ingress: "A viewer is asking about that exact score.",
+          ingress: "A viewer asks about the U.S. Open score.",
           answer:
             "Sabalenka won this match in straight sets by a score of 6-3, 6-2.",
           egress: "Now we return to the title-defense story.",

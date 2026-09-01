@@ -577,12 +577,23 @@ export function answerPlannerLive(
                 model: "deterministic-grounding-fixture/1",
                 gatewayLogId: null,
                 plan: new GroundedAnswerPlan({
-                  plannerVersion: "grounded-answer/1",
+                  plannerVersion: "grounded-answer/2",
                   canAnswer: true,
                   topic,
                   confidence: "high",
+                  subject:
+                    topic === "messi"
+                      ? "Lionel Messi"
+                      : topic === "us-open"
+                        ? "the U.S. Open"
+                        : "the original topic",
                   answer: "This local fixture keeps testing deterministic.",
-                  ingress: "On that question—",
+                  ingress:
+                    topic === "messi"
+                      ? "On Lionel Messi—"
+                      : topic === "us-open"
+                        ? "On the U.S. Open—"
+                        : "On the original topic—",
                   egress: "Back to the story.",
                   informationAsOf: input.requestedAt,
                   sources: [
@@ -1359,7 +1370,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
                 | "h3-compiler/2"
                 | "h3-compiler/3"
                 | "h3-compiler/4"
-                | "h3-compiler/5"
+                | "h3-compiler/6"
                 | "h3-sports-compiler/1";
               duration_ms: number;
             }>();
@@ -1376,7 +1387,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
                 "h3-compiler/2",
                 "h3-compiler/3",
                 "h3-compiler/4",
-                "h3-compiler/5",
+                "h3-compiler/6",
                 "h3-sports-compiler/1",
               ]),
               durationMs: MediaDurationMs,

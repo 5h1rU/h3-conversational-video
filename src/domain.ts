@@ -139,12 +139,13 @@ export class GroundingSource extends Schema.Class<GroundingSource>(
 }) {}
 
 export class GroundedAnswerPlan extends Schema.Class<GroundedAnswerPlan>(
-  "h3/GroundedAnswerPlan",
+  "h3/GroundedAnswerPlanV2",
 )({
-  plannerVersion: Schema.Literal("grounded-answer/1"),
+  plannerVersion: Schema.Literal("grounded-answer/2"),
   canAnswer: Schema.Boolean,
   topic: AnswerTopic,
   confidence: AnswerConfidence,
+  subject: Schema.String,
   answer: Schema.String,
   ingress: Schema.String,
   egress: Schema.String,
@@ -168,7 +169,7 @@ export class GenerationPlan extends Schema.Class<GenerationPlan>(
     "h3-compiler/2",
     "h3-compiler/3",
     "h3-compiler/4",
-    "h3-compiler/5",
+    "h3-compiler/6",
     "h3-sports-compiler/1",
   ]),
   clipId: ClipId,

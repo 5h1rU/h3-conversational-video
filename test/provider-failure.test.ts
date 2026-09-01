@@ -94,12 +94,13 @@ describe("fal submission failure policy", () => {
               model: "fake-grounding/1",
               gatewayLogId: null,
               plan: new GroundedAnswerPlan({
-                plannerVersion: "grounded-answer/1",
+                plannerVersion: "grounded-answer/2",
                 canAnswer: true,
                 topic: "other",
                 confidence: "high",
+                subject: "the grounded test",
                 answer: "A grounded test answer.",
-                ingress: "Let’s take that question.",
+                ingress: "On the grounded test—",
                 egress: "Now back to the program.",
                 informationAsOf: input.requestedAt,
                 sources: [

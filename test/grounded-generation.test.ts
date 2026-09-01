@@ -43,12 +43,13 @@ function fixture() {
     deadlineAt: 9_999_999_999_999,
   });
   const answer = new GroundedAnswerPlan({
-    plannerVersion: "grounded-answer/1",
+    plannerVersion: "grounded-answer/2",
     canAnswer: true,
     topic: "us-open",
     confidence: "high",
+    subject: "the U.S. Open score",
     answer: "Sabalenka won in straight sets, six-three, six-two.",
-    ingress: "A viewer is asking for the exact U.S. Open score.",
+    ingress: "On the U.S. Open score—",
     egress: "That result sets up the next part of her title defense.",
     informationAsOf: "2026-08-31T20:00:00.000Z",
     sources: [
@@ -166,11 +167,17 @@ describe("grounded branch planning", () => {
         ),
       ),
     );
-    expect(result.plan.compilerVersion).toBe("h3-compiler/5");
+    expect(result.plan.compilerVersion).toBe("h3-compiler/6");
     expect(result.plan.grounding?.answer).toBe(answer.answer);
     expect(result.plan.resolvedPrompt).toContain(answer.ingress);
     expect(result.plan.resolvedPrompt).toContain(answer.answer);
     expect(result.plan.resolvedPrompt).toContain(answer.egress);
+    expect(result.plan.resolvedPrompt).toContain(
+      `Original subject=${answer.subject}`,
+    );
+    expect(result.plan.resolvedPrompt).toContain(
+      "may play after the shared program has moved to an unrelated story",
+    );
     expect(result.desiredOrdinal).toBe(21);
     expect(result.plan.continuityStartImageUrl?.pathname).toBe(
       "/v1/canonical/assets/us-open-reentry-end.png",
@@ -179,7 +186,7 @@ describe("grounded branch planning", () => {
       result.plan.continuityStartImageUrl,
     );
     expect(recorded).toEqual([
-      "ledger:h3-compiler/5:21",
+      "ledger:h3-compiler/6:21",
       "place:anchor-002:anchor-003",
     ]);
   });

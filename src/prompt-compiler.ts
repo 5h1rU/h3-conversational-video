@@ -55,7 +55,7 @@ export function compileGenerationPlan(input: {
     primary: "Mara Vale" as const,
     secondary: "Theo Reyes" as const,
     speakingRule:
-      "Treat the viewer as part of the live program. Use at most sixteen spoken words total: a brief subject-specific acknowledgment, one concise factual answer, and a very short organic handoff. Speak at a calm natural news cadence. Never accelerate, time-compress, or rush speech. Do not use a canned receipt phrase, repeat the whole question, or invent facts.",
+      "Treat the viewer as part of the live program. Open by explicitly naming the original question subject so a delayed answer remains understandable during unrelated news. Use at most sixteen spoken words total: that subject-specific acknowledgment, one concise factual answer, and a very short organic handoff. Speak at a calm natural news cadence. Never accelerate, time-compress, or rush speech. Do not use a vague phrase such as ‘that question’, repeat the whole question, or invent facts.",
   };
   const world = {
     show: "The Signal Room" as const,
@@ -88,9 +88,12 @@ export function compileGenerationPlan(input: {
     `[CHARACTER] ${character.primary} and ${character.secondary}. ${character.speakingRule}`,
     `[WORLD] ${world.set} ${world.cameraGrammar} ${world.visualDisclosure}`,
     `[SESSION] Viewer-now=${session.currentAnchor}; branch-start=${session.branchStartAnchor}; rejoin=${session.rejoinAnchor}; viewer=${session.question}`,
+    groundedAnswer
+      ? `[QUESTION CONTEXT] Original subject=${groundedAnswer.subject}. This branch may play after the shared program has moved to an unrelated story. The first spoken clause must explicitly name “${groundedAnswer.subject}” so the viewer understands which earlier question is being answered.`
+      : `[QUESTION CONTEXT] Original viewer question=${session.question}. Resolve and explicitly name its subject before live submission.`,
     `[SHOT] ${shot.dialogue} ${shot.framing} ${shot.motion} ${shot.audio} End: ${shot.terminalState}`,
     groundedAnswer
-      ? `[GROUNDING] Speak the supplied ingress, answer, and egress exactly as written. The answer was grounded at ${groundedAnswer.informationAsOf} with ${groundedAnswer.sources.length} validated source(s). Do not add, remove, paraphrase, or invent facts.`
+      ? `[GROUNDING] Speak the supplied subject-explicit ingress, answer, and egress exactly as written. The answer was grounded at ${groundedAnswer.informationAsOf} with ${groundedAnswer.sources.length} validated source(s). Do not add, remove, paraphrase, or invent facts.`
       : "[GROUNDING] This draft is unresolved and must not be submitted to a live video provider.",
     "[TIMING] Ingress 0.0-1.2s; direct answer 1.2-5.2s; egress 5.2-6.2s; silent exact-pose restoration 6.2-7.0s. Use at most sixteen spoken words total at a calm 135-150 words-per-minute news cadence. Never accelerate, time-stretch, compress, or rush the voice to fit. One continuous locked two-shot, no cut or camera move.",
     `[CONTINUITY] The supplied first and last images are the exact shared endpoint frame at ${session.branchStartAnchor}, immediately before ${session.rejoinAnchor}. Begin from it and restore it exactly before the canonical program resumes. Preserve faces, wardrobe, studio, voices, room tone, camera axis, exposure, and color grade throughout.`,
@@ -103,7 +106,7 @@ export function compileGenerationPlan(input: {
   );
 
   return new GenerationPlan({
-    compilerVersion: groundedAnswer ? "h3-compiler/5" : "h3-compiler/3",
+    compilerVersion: groundedAnswer ? "h3-compiler/6" : "h3-compiler/3",
     clipId: input.clipId,
     branchId: input.branchId,
     durationSeconds: 7,

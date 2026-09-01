@@ -105,7 +105,7 @@ export interface ArtifactCommitInput {
     | "h3-compiler/2"
     | "h3-compiler/3"
     | "h3-compiler/4"
-    | "h3-compiler/5"
+    | "h3-compiler/6"
     | "h3-sports-compiler/1";
 }
 
@@ -192,7 +192,7 @@ export class GenerationProvider extends Context.Service<
         | "h3-compiler/2"
         | "h3-compiler/3"
         | "h3-compiler/4"
-        | "h3-compiler/5"
+        | "h3-compiler/6"
         | "h3-sports-compiler/1";
       readonly durationMs: MediaDurationMs;
     }): Effect.Effect<ArtifactCommitInput, ProviderError>;
@@ -231,7 +231,7 @@ export class AnswerPlanLedger extends Context.Service<
       readonly model: string;
       readonly plan: GroundedAnswerPlan;
       readonly gatewayLogId: string | null;
-      readonly resolvedPromptCompilerVersion: "h3-compiler/5" | null;
+      readonly resolvedPromptCompilerVersion: "h3-compiler/6" | null;
       readonly desiredOrdinal: number | null;
       readonly at: string;
     }): Effect.Effect<void, StorageError>;
@@ -319,7 +319,7 @@ export class AuditLedger extends Context.Service<
           | "h3-compiler/2"
           | "h3-compiler/3"
           | "h3-compiler/4"
-          | "h3-compiler/5"
+          | "h3-compiler/6"
           | "h3-sports-compiler/1";
         readonly durationMs: MediaDurationMs;
       } | null,
