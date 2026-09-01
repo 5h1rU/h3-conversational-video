@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   canCommitMediaHandoff,
   canonicalPreloadUrls,
+  immediateBranchPackageTailId,
+  projectImmediateBranchPackage,
+  selectImmediateReadyBranchId,
   selectNextClipId,
   selectNextPlayableClipId,
   selectRefreshClipId,
   shouldAdvanceFromEnded,
+  shouldClearImmediateBranchQueue,
   type BufferedClip,
   type SequencedClip,
 } from "../src/player-sequence";
@@ -89,6 +93,109 @@ describe("viewer playback sequence", () => {
     expect(
       selectRefreshClipId(published, canonicalAfter.id, new Set([branch.id])),
     ).toBe(canonicalAfter.id);
+  });
+
+  it("queues a newly ready branch immediately after the active canonical clip", () => {
+    const latePublication = [
+      branch,
+      canonicalBefore,
+      canonicalContext,
+      canonicalAfter,
+    ];
+    const queued = selectImmediateReadyBranchId(
+      latePublication,
+      canonicalContext.id,
+      new Set(),
+      null,
+    );
+    expect(queued).toBe(branch.id);
+    expect(
+      projectImmediateBranchPackage(
+        latePublication,
+        canonicalContext.id,
+        queued,
+      ).map((entry) => entry.id),
+    ).toEqual([
+      canonicalBefore.id,
+      canonicalContext.id,
+      branch.id,
+      canonicalAfter.id,
+    ]);
+  });
+
+  it("keeps an explicit branch and re-entry together before resuming forward", () => {
+    const branchBehindPlayback = [
+      canonicalBefore,
+      branch,
+      reentry,
+      canonicalContext,
+      canonicalAfter,
+    ];
+    const projected = projectImmediateBranchPackage(
+      branchBehindPlayback,
+      canonicalContext.id,
+      branch.id,
+    );
+    expect(projected.map((entry) => entry.id)).toEqual([
+      canonicalBefore.id,
+      canonicalContext.id,
+      branch.id,
+      reentry.id,
+      canonicalAfter.id,
+    ]);
+    expect(immediateBranchPackageTailId(projected, branch.id)).toBe(reentry.id);
+  });
+
+  it("keeps the same immediate branch projection across playlist polls", () => {
+    const firstPoll = [
+      branch,
+      canonicalBefore,
+      canonicalContext,
+      canonicalAfter,
+    ];
+    const queued = selectImmediateReadyBranchId(
+      firstPoll,
+      canonicalContext.id,
+      new Set(),
+      null,
+    );
+    const secondPoll = firstPoll.map((entry) => ({ ...entry }));
+    expect(
+      selectImmediateReadyBranchId(
+        secondPoll,
+        canonicalContext.id,
+        new Set(),
+        queued,
+      ),
+    ).toBe(branch.id);
+    expect(
+      projectImmediateBranchPackage(
+        secondPoll,
+        canonicalContext.id,
+        queued,
+      ).map((entry) => entry.id),
+    ).toEqual([
+      canonicalBefore.id,
+      canonicalContext.id,
+      branch.id,
+      canonicalAfter.id,
+    ]);
+  });
+
+  it("clears an immediate combined branch after playback or media fallback", () => {
+    expect(
+      shouldClearImmediateBranchQueue(branch.id, branch.id, new Set()),
+    ).toBe(true);
+    expect(
+      shouldClearImmediateBranchQueue(
+        canonicalContext.id,
+        branch.id,
+        new Set([branch.id]),
+      ),
+    ).toBe(true);
+    expect(
+      shouldClearImmediateBranchQueue(branch.id, reentry.id, new Set()),
+    ).toBe(false);
   });
 
   it("preloads the complete unique canonical media set", () => {

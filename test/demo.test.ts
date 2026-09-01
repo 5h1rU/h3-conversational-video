@@ -38,6 +38,15 @@ describe("session viewer", () => {
     expect(demoHtml).not.toContain("video.src=clip.mediaUrl");
   });
 
+  it("projects a completed branch as the next playable package", () => {
+    expect(demoHtml).toContain("selectImmediateReadyBranchId");
+    expect(demoHtml).toContain("projectImmediateBranchPackage");
+    expect(demoHtml).toContain("immediateBranchPackageTailId");
+    expect(demoHtml).toContain("shouldClearImmediateBranchQueue");
+    expect(demoHtml).toContain("Answer ready — playing after this clip");
+    expect(demoHtml).toContain("queuedBranchId=null");
+  });
+
   it("uses a microphone-first question flow with explicit paid-generation confirmation", () => {
     expect(demoHtml).toContain('id="mic"');
     expect(demoHtml).toContain("window.SpeechRecognition");
