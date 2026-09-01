@@ -1,7 +1,10 @@
 import { Effect, Layer, Predicate, Schema } from "effect";
 import {
-  buildCloudflareWebSearchAnswerRequest,
-  decodeCloudflareWebSearchAnswerResponse,
+  buildMoonshotGroundedAnswerRequest,
+  buildMoonshotWebSearchRequest,
+  decodeBoundedJsonResponse,
+  decodeMoonshotGroundedAnswerResponse,
+  decodeMoonshotWebSearchResponse,
 } from "./answer-planner";
 import {
   anchorForIndex,
@@ -526,8 +529,28 @@ export function generationQueueLive(
   );
 }
 
+const MOONSHOT_CHAT_COMPLETIONS_URL =
+  "https://api.moonshot.ai/v1/chat/completions";
+
+async function callMoonshot(apiKey: string, body: unknown): Promise<unknown> {
+  const response = await fetch(MOONSHOT_CHAT_COMPLETIONS_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    redirect: "error",
+    signal: AbortSignal.timeout(55_000),
+  });
+  if (!response.ok) {
+    response.body?.cancel().catch(() => undefined);
+    throw new Error(`Moonshot API returned HTTP ${response.status}`);
+  }
+  return decodeBoundedJsonResponse(response);
+}
+
 export function answerPlannerLive(
-  ai: Ai,
   config: AppConfig["Service"],
 ): Layer.Layer<AnswerPlanner> {
   return Layer.succeed(
@@ -566,35 +589,56 @@ export function answerPlannerLive(
                 }),
               };
             }
-            let response: unknown;
+            if (config.moonshotApiKey === undefined) {
+              throw new AnswerPlanningError({
+                code: "ANSWER_GATEWAY_FAILED",
+                message: "Moonshot API key is not configured",
+                retryable: false,
+              });
+            }
+            let searchResponse: unknown;
             try {
-              response = await ai.run(
-                config.answerPlannerModel,
-                buildCloudflareWebSearchAnswerRequest(input),
-                {
-                  gateway: {
-                    id: config.aiGatewayId,
-                    skipCache: true,
-                    collectLog: true,
-                    requestTimeoutMs: 20_000,
-                    retries: { maxAttempts: 1 },
-                    metadata: {
-                      workload: "h3-grounded-answer",
-                      episode: input.episodeId,
-                    },
-                  },
-                },
+              searchResponse = await callMoonshot(
+                config.moonshotApiKey,
+                buildMoonshotWebSearchRequest(input, config.answerPlannerModel),
               );
             } catch (cause) {
               throw new AnswerPlanningError({
                 code: "ANSWER_GATEWAY_FAILED",
-                message: `Grounded answer gateway request failed: ${String(cause)}`,
+                message: `Moonshot web-search request failed: ${String(cause)}`,
+                retryable: false,
+              });
+            }
+            let search;
+            try {
+              search = decodeMoonshotWebSearchResponse(searchResponse);
+            } catch (cause) {
+              throw new AnswerPlanningError({
+                code: "ANSWER_PAYLOAD_INVALID",
+                message: `Moonshot web-search response was invalid: ${String(cause)}`,
+                retryable: false,
+              });
+            }
+            let response: unknown;
+            try {
+              response = await callMoonshot(
+                config.moonshotApiKey,
+                buildMoonshotGroundedAnswerRequest(
+                  input,
+                  config.answerPlannerModel,
+                  search,
+                ),
+              );
+            } catch (cause) {
+              throw new AnswerPlanningError({
+                code: "ANSWER_GATEWAY_FAILED",
+                message: `Moonshot grounded-answer request failed: ${String(cause)}`,
                 retryable: false,
               });
             }
             let plan: GroundedAnswerPlan;
             try {
-              plan = decodeCloudflareWebSearchAnswerResponse(
+              plan = decodeMoonshotGroundedAnswerResponse(
                 response,
                 input.requestedAt,
               );
@@ -606,9 +650,9 @@ export function answerPlannerLive(
               });
             }
             return {
-              provider: "openai" as const,
+              provider: "moonshot" as const,
               model: config.answerPlannerModel,
-              gatewayLogId: ai.aiGatewayLogId,
+              gatewayLogId: null,
               plan,
             };
           },
@@ -986,6 +1030,12 @@ function bindingSecret(env: Env): string | undefined {
   return Predicate.isString(value) && value.length > 0 ? value : undefined;
 }
 
+function moonshotSecret(env: Env): string | undefined {
+  if (!("MOONSHOT_API_KEY" in env)) return undefined;
+  const value = env.MOONSHOT_API_KEY;
+  return Predicate.isString(value) && value.length > 0 ? value : undefined;
+}
+
 export function appConfigLive(env: Env): Layer.Layer<AppConfig> {
   return Layer.succeed(
     AppConfig,
@@ -1004,9 +1054,9 @@ export function appConfigLive(env: Env): Layer.Layer<AppConfig> {
       answerPlannerMode:
         String(env.ANSWER_PLANNER_MODE) === "fake"
           ? "fake"
-          : "cloudflare-web-search",
+          : "moonshot-web-search",
       answerPlannerModel: env.ANSWER_PLANNER_MODEL,
-      aiGatewayId: env.AI_GATEWAY_ID,
+      moonshotApiKey: moonshotSecret(env),
     }),
   );
 }

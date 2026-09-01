@@ -10,7 +10,7 @@ HTTP typed event
   -> native DO SQLite transaction (reserve + idempotency)
   -> Queue encoded job
   -> Effect submitGeneration
-  -> Effect groundBranch -> Cloudflare Unified AI / OpenAI web search
+  -> Effect groundBranch -> Moonshot Kimi built-in web search
   -> D1 answer-plan audit + Session DO semantic placement
   -> fake or fal provider
   -> validateCommitArtifact (R2 media + immutable manifest)
@@ -39,14 +39,14 @@ Queue delivery and provider completion may happen more than once or out of order
 
 ## Swappable pieces
 
-| Contract              | Live implementation                             | Replacement examples                         |
-| --------------------- | ----------------------------------------------- | -------------------------------------------- |
-| `GenerationProvider`  | deterministic fake or fal H3 Max queue adapter  | another video model, self-hosted H3          |
-| `ArtifactStore`       | R2 content-addressed commit                     | R2 + containerized normalizer/CMAF packager  |
-| `AuditLedger`         | D1                                              | another cross-session analytics/ledger store |
-| clip queue projection | JSON committed clip queue                       | dynamic HLS/CMAF manifest adapter            |
-| `AnswerPlanner`       | OpenAI web search through Cloudflare Unified AI | another grounded model, sports-data adapter  |
-| Effect service layers | live Cloudflare bindings                        | deterministic test layers                    |
+| Contract              | Live implementation                            | Replacement examples                         |
+| --------------------- | ---------------------------------------------- | -------------------------------------------- |
+| `GenerationProvider`  | deterministic fake or fal H3 Max queue adapter | another video model, self-hosted H3          |
+| `ArtifactStore`       | R2 content-addressed commit                    | R2 + containerized normalizer/CMAF packager  |
+| `AuditLedger`         | D1                                             | another cross-session analytics/ledger store |
+| clip queue projection | JSON committed clip queue                      | dynamic HLS/CMAF manifest adapter            |
+| `AnswerPlanner`       | Moonshot Kimi built-in web search              | another grounded model, sports-data adapter  |
+| Effect service layers | live Cloudflare bindings                       | deterministic test layers                    |
 
 `src/services.ts` contains contracts and tagged errors. `src/layers.ts` contains live adapter layers. `src/use-cases/` contains named orchestration. `src/domain.ts` is the single schema and branded-ID boundary. `src/index.ts` and `src/session-do.ts` are delivery adapters/public facade.
 
@@ -54,7 +54,7 @@ Queue delivery and provider completion may happen more than once or out of order
 
 `src/canonical-sports.ts` owns the versioned sports content and `sports-news-continuity/1` contract. It fixes all audiovisual invariants and compiles four per-clip specifications without exposing episode orchestration to fal. D1 owns canonical build/audit records and approval evidence; R2 owns immutable continuity images and media manifests; the Session Durable Object snapshots only an approved episode and remains the sole live ordering authority.
 
-`src/answer-planner.ts` is the external search-model wire boundary. It sends one low-context `openai/gpt-4o-mini` Responses request through the native AI binding and the dedicated authenticated `h3-conversational-video` AI Gateway. OpenAI's provider-native `web_search_preview` tool performs retrieval without a Worker-side browser, and Cloudflare Unified Billing supplies the provider credential. The adapter decodes the Responses envelope, structured JSON content, and URL citation annotations separately. The question is explicitly delimited as untrusted data, and only schema-validated HTTPS provider citations are admitted as evidence. `groundBranch` records the plan and AI Gateway log ID in D1, selects the episode's adjacent semantic anchors, atomically updates the still-current planned branch in the Session Durable Object, and only then allows fal submission. An ungrounded result is terminal for that branch and preserves canonical playback without video-provider spend.
+`src/answer-planner.ts` is the external search-model wire boundary. It uses the Moonshot API directly from the Cloudflare Worker with a secret binding and caps the exchange at one `kimi-k2.6` `$web_search` tool call followed by one JSON answer request. Kimi owns retrieval; the Worker has no browser, crawler, or agent loop. The adapter separately decodes the first Chat Completions envelope, validates and round-trips the provider's opaque search arguments, then decodes bounded answer JSON and HTTPS source URLs into domain values. The question is explicitly delimited as untrusted data. `groundBranch` records the plan and provider/model metadata in D1, selects the episode's adjacent semantic anchors, atomically updates the still-current planned branch in the Session Durable Object, and only then allows fal submission. An ungrounded result is terminal for that branch and preserves canonical playback without video-provider spend. `AnswerPlanner` remains replaceable; direct Moonshot transport is a deliberate billing/credential choice and does not abstract Cloudflare Queue or Durable Object semantics.
 
 `src/domain.ts` separately models fal's encoded webhook envelope and its decoded provider data. The wire codec validates the JSON string in `payload.video.url`, transforms it to an HTTPS `URL`, and preserves documented nullable fields such as `expanded_prompt`. Signature verification runs over the raw bytes before this decode. JWKS are cached for normal delivery, while a signature miss triggers one fresh fetch and verification attempt to tolerate provider key rotation without weakening authentication. A claimed delivery moves from `PROCESSING` to `COMPLETED`; transient downstream failures mark it `RETRYABLE`, and an abandoned processing lease can be reclaimed after two minutes. Media fetches use manual redirects and reject every redirect. The longer branch has a two-minute asynchronous generation deadline while canonical playback continues. Later callbacks are terminal audit events acknowledged without media download, R2 commit, or timeline mutation.
 

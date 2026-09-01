@@ -118,8 +118,8 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "openai/gpt-4o-mini",
-      aiGatewayId: "default",
+      answerPlannerModel: "kimi-k2.6",
+      moonshotApiKey: undefined,
     };
     await expect(
       Effect.runPromise(
@@ -171,8 +171,8 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "openai/gpt-4o-mini",
-      aiGatewayId: "default",
+      answerPlannerModel: "kimi-k2.6",
+      moonshotApiKey: undefined,
     };
 
     const submission = await Effect.runPromise(
@@ -221,8 +221,8 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "openai/gpt-4o-mini",
-      aiGatewayId: "default",
+      answerPlannerModel: "kimi-k2.6",
+      moonshotApiKey: undefined,
     };
 
     const result = await Effect.runPromise(
@@ -266,8 +266,8 @@ describe("fal H3 Max cost-first request", () => {
       falKey: "test-only-key",
       canonicalAdminToken: undefined,
       answerPlannerMode: "fake",
-      answerPlannerModel: "openai/gpt-4o-mini",
-      aiGatewayId: "default",
+      answerPlannerModel: "kimi-k2.6",
+      moonshotApiKey: undefined,
     };
 
     await expect(

@@ -55,7 +55,7 @@ curl -sS http://localhost:8787/v1/sessions/SESSION_ID/playlist
 - The player consumes a replaceable committed clip queue. Dynamic HLS/CMAF is the target adapter after codec/timestamp continuity is proven.
 - The browser fetches the complete session-authorized canonical media set before starting, converts those responses to local object URLs, and uses two layered video elements. The standby clip is loaded and decoded beneath the active clip; an atomic frame-boundary layer swap preserves the prior rendered frame until the next clip is playing. Playlist polling never replaces the active element.
 - The prompt compiler is pure and deterministic. Character, world, session, and shot contexts are explicit; fal.ai receives one resolved specification and has no tools or orchestration authority. Canonical media is stored once in R2 and cataloged in D1, then projected into each session with session-bound media URLs.
-- Each accepted question is grounded by one `openai/gpt-4o-mini` Responses request through Cloudflare Unified AI and the dedicated AI Gateway. OpenAI's provider-native `web_search_preview` tool performs the search; the Worker does not run a browser. The request uses low search context, structured JSON, one attempt, and no cache; only HTTPS URLs from provider citation annotations are accepted as evidence. If the planner cannot produce an evidence-backed answer, the branch fails safely before fal.ai is called and canonical playback continues.
+- Each accepted question is grounded by a bounded `kimi-k2.6` exchange with Moonshot's built-in `$web_search`. The first request may make exactly one search tool call and the second must return the final structured answer; the Worker does not run a browser or an open-ended agent loop. Only schema-validated HTTPS evidence is accepted. If the planner cannot produce an evidence-backed answer, the branch fails safely before fal.ai is called and canonical playback continues.
 - Topic placement is semantic rather than tied to the capture instant. A Messi question branches after Messi context and rejoins at US Open; a US Open question branches after the first US Open headline and rejoins at its continuation. The ordered branch owns exact natural ingress, grounded answer, and egress language, while the player follows playlist adjacency exactly and polling cannot pull it forward.
 
 See [docs/architecture.md](docs/architecture.md) for module boundaries, swappable components, and intentionally native Cloudflare invariants.
@@ -91,11 +91,17 @@ npx wrangler secret put FAL_KEY
 
 ## Grounded answer planning
 
-Production uses `ANSWER_PLANNER_MODE: "cloudflare-web-search"`, `ANSWER_PLANNER_MODEL: "openai/gpt-4o-mini"`, the `AI` binding, and the dedicated authenticated `h3-conversational-video` AI Gateway. Cloudflare manages the upstream provider credential through Unified Billing, so this application needs no OpenAI or search-provider API key. The Gateway must have prepaid credits before live requests can run; never place billing credentials or provider keys in this repository, `wrangler.jsonc`, `.dev.vars`, or Worker secrets. Local and automated test layers remain deterministic and cost-free.
+Production uses `ANSWER_PLANNER_MODE: "moonshot-web-search"` and `ANSWER_PLANNER_MODEL: "kimi-k2.6"`. The Cloudflare Worker calls Moonshot's OpenAI-compatible API directly with the `MOONSHOT_API_KEY` Worker secret. This avoids Cloudflare Unified Billing for answer planning, but model tokens and `$web_search` are billed to the Moonshot account associated with that key. Never place the key in this repository, `wrangler.jsonc`, `.dev.vars`, browser code, or logs. Local and automated test layers remain deterministic and cost-free.
 
-The planner is deliberately a single bounded search-and-answer call, not an open-ended agent. It receives the episode outline and viewer question as untrusted data, returns a schema-validated topic, confidence, exact ingress/answer/egress copy, an information-as-of timestamp, and citations. The application admits only schema-validated HTTPS citation annotations emitted by the provider's web-search response boundary. The full plan and AI Gateway log ID are recorded in D1 for audit, but fal.ai receives only the resolved visual/dialogue specification.
+Install the planner credential interactively for a deployed Worker:
 
-No sports-data API is required for this first slice. A replaceable `AnswerPlanner` service keeps that option open if later product requirements demand deterministic scores, statistics, or league-wide coverage. Current search-model and web-search pricing is intentionally excluded from runtime logic and must be checked immediately before paid use. Cloudflare's documentation states that these requests use upstream web-search pricing through Unified Billing and that AI Gateway adds no separate search fee.
+```bash
+npx wrangler secret put MOONSHOT_API_KEY
+```
+
+The planner is deliberately one bounded built-in search followed by one answer request, not an open-ended agent. Kimi thinking is explicitly disabled because Moonshot currently documents `$web_search` with non-thinking mode. The adapter receives the episode outline and viewer question as untrusted data, preserves Moonshot's opaque search arguments at the tool boundary, and then decodes a schema-validated topic, confidence, exact ingress/answer/egress copy, information-as-of timestamp, and up to five HTTPS sources. The full plan and provider/model audit metadata are recorded in D1, but fal.ai receives only the resolved visual/dialogue specification.
+
+No sports-data API is required for this first slice. A replaceable `AnswerPlanner` service keeps that option open if later product requirements demand deterministic scores, statistics, or league-wide coverage. Pricing is intentionally excluded from runtime logic and must be checked immediately before paid use. As a time-sensitive snapshot on 2026-09-01, Moonshot documented `$web_search` at $0.005 when the tool is called, plus model-token usage; verify the current Moonshot pricing page before relying on that figure.
 
 On 2026-08-31, one controlled live request against the zero-credit account was rejected before fal issued a provider request ID. D1 recorded `FAL_ACCOUNT_REJECTED`, no cost entry was created, the private branch became `failed`, and the revision-1 canonical playlist continued unchanged. Terminal 4xx account/payment/input rejections are acknowledged without provider resubmission; only transient 408/425/429/5xx submission failures are eligible for Queue retry.
 
@@ -111,8 +117,10 @@ Current primary references:
 - [Cloudflare Queue JavaScript API](https://developers.cloudflare.com/queues/configuration/javascript-apis/)
 - [Cloudflare R2 Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)
 - [Cloudflare Workers Vitest integration](https://developers.cloudflare.com/workers/testing/vitest-integration/)
-- [Cloudflare AI Gateway web search](https://developers.cloudflare.com/ai-gateway/usage/web-search/)
-- [Cloudflare AI binding methods](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/)
+- [Moonshot API overview](https://platform.kimi.ai/docs/api/overview)
+- [Moonshot built-in web search](https://platform.kimi.ai/docs/guide/use-web-search)
+- [Kimi K2.6 quickstart](https://platform.kimi.ai/docs/guide/kimi-k2-6-quickstart)
+- [Moonshot tool pricing](https://platform.kimi.ai/docs/pricing/tools)
 - [Cloudflare Unified Billing](https://developers.cloudflare.com/ai-gateway/features/unified-billing/)
 - [OpenAI web search response citations](https://developers.openai.com/api/docs/guides/tools-web-search)
 
@@ -148,7 +156,7 @@ The current prototype deployment was validated on 2026-08-31 with remote session
 
 ## Correctness and degradation
 
-Tests cover deterministic canonical planning, the exact Cloudflare Unified AI low-search-context request, provider citation and unsafe-URL rejection, topic-aware semantic placement, exact grounded dialogue compilation, the exact 15-second 480P branch request, five-second canonical preservation, voice-first UI and fallback, continuity-asset `HEAD`/`GET`, canonical reuse, atomic branch-package ordering, single-branch enforcement, duplicate viewer event/queue/webhook handling, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, full canonical preloading, standby readiness, double-buffer handoff, player identity stability across polling, media-error continuation, and playlist revision changes. Grounding, provider, or deadline failure marks the branch failed without changing playlist revision, so canonical playback continues.
+Tests cover deterministic canonical planning, the exact bounded Kimi `$web_search` exchange, repeated/unknown tool-call rejection, source and unsafe-URL rejection, response-size limits, topic-aware semantic placement, exact grounded dialogue compilation, the exact 15-second 480P branch request, five-second canonical preservation, voice-first UI and fallback, continuity-asset `HEAD`/`GET`, canonical reuse, atomic branch-package ordering, single-branch enforcement, duplicate viewer event/queue/webhook handling, failure fallback, Durable Object eviction/recovery, committed-only playlist projection, semantic re-entry ordering, full canonical preloading, standby readiness, double-buffer handoff, player identity stability across polling, media-error continuation, and playlist revision changes. Grounding, provider, or deadline failure marks the branch failed without changing playlist revision, so canonical playback continues.
 
 The simulator uses SVG visual fixtures, not production video. Before replacing it with HLS, run the media proof described in the product document: consecutive MP4 codec/profile/timestamp inspection, first/last-frame continuity, audio normalization, and Safari/iOS plus Chrome/Android playback validation.
 

@@ -9,12 +9,12 @@
     "PROVIDER_MODE": "fal",
     "PUBLIC_BASE_URL": "https://h3-conversational-video-prototype.yo-617.workers.dev",
     "FAL_MODEL": "minimax/h3-max/text-to-video",
-    "ANSWER_PLANNER_MODE": "cloudflare-web-search",
-    "ANSWER_PLANNER_MODEL": "openai/gpt-4o-mini",
-    "AI_GATEWAY_ID": "h3-conversational-video",
+    "ANSWER_PLANNER_MODE": "moonshot-web-search",
+    "ANSWER_PLANNER_MODEL": "kimi-k2.6",
   },
-  "secrets": { "required": ["FAL_KEY", "CANONICAL_ADMIN_TOKEN"] },
-  "ai": { "binding": "AI" },
+  "secrets": {
+    "required": ["FAL_KEY", "CANONICAL_ADMIN_TOKEN", "MOONSHOT_API_KEY"],
+  },
   "durable_objects": {
     "bindings": [{ "name": "SESSIONS", "class_name": "SessionDurableObject" }],
   },

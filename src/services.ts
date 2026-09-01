@@ -206,7 +206,7 @@ export interface AnswerPlanningInput {
 
 export interface AnswerPlanningResult {
   readonly plan: GroundedAnswerPlan;
-  readonly provider: "openai" | "fake";
+  readonly provider: "moonshot" | "fake";
   readonly model: string;
   readonly gatewayLogId: string | null;
 }
@@ -354,9 +354,9 @@ export class AppConfig extends Context.Service<
     readonly falModel: string;
     readonly falKey: string | undefined;
     readonly canonicalAdminToken: string | undefined;
-    readonly answerPlannerMode: "fake" | "cloudflare-web-search";
+    readonly answerPlannerMode: "fake" | "moonshot-web-search";
     readonly answerPlannerModel: string;
-    readonly aiGatewayId: string;
+    readonly moonshotApiKey: string | undefined;
   }
 >()("h3/services/AppConfig") {}
 
