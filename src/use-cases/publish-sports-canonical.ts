@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect";
 import {
   continuityAssetKey,
+  canonicalBuildIdempotencyKey,
   SPORTS_CANONICAL_SPECS,
   SPORTS_CONTINUITY_VERSION,
   SPORTS_EPISODE_ID,
@@ -17,20 +18,18 @@ import {
 } from "../domain";
 import { ArtifactStore, CanonicalCatalog, InputError } from "../services";
 
-const buildKey = {
-  "messi-headline": "canonical:messi-headline:v1:retry:2",
-  "messi-context": "canonical:messi-context:v1",
-  "us-open-reentry": "canonical:us-open-reentry:v1",
-  "us-open-continuation": "canonical:us-open-continuation:v1",
-} as const;
-
 export const publishSportsCanonical = Effect.fn("publishSportsCanonical")(
   function* (publishedAt: string) {
     const catalog = yield* CanonicalCatalog;
     const artifacts = yield* ArtifactStore;
     const clips: CanonicalPublicationClip[] = [];
     for (const spec of SPORTS_CANONICAL_SPECS) {
-      const build = yield* catalog.findCompletedBuild(buildKey[spec.slot]);
+      const build = yield* catalog.findCompletedBuild(
+        canonicalBuildIdempotencyKey(
+          spec.slot,
+          spec.slot === "messi-headline" ? 2 : 1,
+        ),
+      );
       if (!build)
         return yield* new InputError({
           message: `Canonical build is incomplete for ${spec.slot}`,

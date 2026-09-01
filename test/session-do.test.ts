@@ -19,7 +19,7 @@ function event(eventId: string, playbackPositionMs = 10_000) {
 }
 
 describe("Session Durable Object ordering authority", () => {
-  it("reuses the four canonical sports artifacts and atomically inserts one combined branch package", async () => {
+  it("reuses the canonical sports artifacts and atomically inserts one combined branch package", async () => {
     const sessionId = "sports-session-ordering";
     const canonicalEntries = Array.from({ length: 4 }, (_, index) => ({
       ordinal: index * 10,

@@ -1,20 +1,25 @@
 import { env } from "cloudflare:workers";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it } from "vitest";
-import { SPORTS_EPISODE_ID } from "../src/canonical-sports";
+import {
+  canonicalBuildIdempotencyKey,
+  SPORTS_CANONICAL_SPECS,
+  SPORTS_EPISODE_ID,
+} from "../src/canonical-sports";
 import { artifactStoreLive, canonicalCatalogLive } from "../src/layers";
 import { CanonicalCatalog } from "../src/services";
 import { publishSportsCanonical } from "../src/use-cases/publish-sports-canonical";
 
-const jobs = [
-  ["canonical:messi-headline:v1:retry:2", "canonical-sports-messi-headline"],
-  ["canonical:messi-context:v1", "canonical-sports-messi-context"],
-  ["canonical:us-open-reentry:v1", "canonical-sports-us-open-reentry"],
-  [
-    "canonical:us-open-continuation:v1",
-    "canonical-sports-us-open-continuation",
-  ],
-] as const;
+const jobs = SPORTS_CANONICAL_SPECS.map(
+  (spec) =>
+    [
+      canonicalBuildIdempotencyKey(
+        spec.slot,
+        spec.slot === "messi-headline" ? 2 : 1,
+      ),
+      spec.clipId,
+    ] as const,
+);
 
 beforeEach(async () => {
   await env.DB.batch([
@@ -89,18 +94,18 @@ beforeEach(async () => {
 });
 
 describe("canonical episode publication", () => {
-  it("validates four committed artifacts and publishes the reusable catalog atomically", async () => {
+  it("validates ten committed artifacts and publishes the reusable catalog atomically", async () => {
     const program = publishSportsCanonical("2026-08-31T21:00:00.000Z").pipe(
       Effect.provide(canonicalCatalogLive(env.DB)),
       Effect.provide(artifactStoreLive(env.MEDIA)),
     );
     await expect(Effect.runPromise(program)).resolves.toEqual({
       published: true,
-      clipCount: 4,
+      clipCount: 10,
     });
     await expect(Effect.runPromise(program)).resolves.toEqual({
       published: true,
-      clipCount: 4,
+      clipCount: 10,
     });
     const clips = await Effect.runPromise(
       CanonicalCatalog.use((catalog) =>

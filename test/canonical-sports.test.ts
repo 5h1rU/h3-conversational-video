@@ -9,15 +9,21 @@ import { CanonicalBuildPayload } from "../src/domain";
 import { compileFalH3MaxRequest } from "../src/fal-provider";
 
 describe("sports canonical release", () => {
-  it("defines exactly four truthful ordered five-second segments", () => {
+  it("defines exactly ten truthful ordered five-second segments", () => {
     expect(SPORTS_CANONICAL_SPECS.map((clip) => clip.slot)).toEqual([
       "messi-headline",
       "messi-context",
       "us-open-reentry",
       "us-open-continuation",
+      "djokovic-upset-headline",
+      "djokovic-upset-context",
+      "alcaraz-return-headline",
+      "alcaraz-return-context",
+      "dutch-gp-headline",
+      "dutch-gp-context",
     ]);
     expect(SPORTS_CANONICAL_SPECS.map((clip) => clip.ordinal)).toEqual([
-      0, 10, 20, 30,
+      0, 10, 20, 30, 40, 50, 60, 70, 80, 90,
     ]);
     const dialogue = SPORTS_CANONICAL_SPECS.map((clip) => clip.dialogue).join(
       " ",
@@ -27,8 +33,25 @@ describe("sports canonical release", () => {
     expect(dialogue).toContain("Aryna Sabalenka");
     expect(dialogue).toContain("Camila Osorio");
     expect(dialogue).toContain("third consecutive title");
+    expect(dialogue).toContain("Mariano Navone");
+    expect(dialogue).toContain("earliest Slam exit since 2006");
+    expect(dialogue).toContain("Roman Safiullin 6-4, 6-4, 6-4");
+    expect(dialogue).toContain("Lando Norris");
+    expect(dialogue).toContain("Kimi Antonelli");
     expect(SPORTS_EPISODE_ID).toBe("sports-news-2026-08-31");
     expect(SPORTS_CONTINUITY_VERSION).toBe("sports-news-continuity/1");
+  });
+
+  it("keeps canonical speech concise enough for natural five-second delivery", () => {
+    for (const spec of SPORTS_CANONICAL_SPECS.filter(
+      (candidate) => candidate.ordinal >= 40,
+    )) {
+      const spoken = spec.dialogue
+        .replace(/^[^“]*“/u, "")
+        .replace(/”[^”]*$/u, "")
+        .trim();
+      expect(spoken.split(/\s+/u).length, spec.slot).toBeLessThanOrEqual(16);
+    }
   });
 
   it("resolves every canonical request to the supported image continuity contract", () => {

@@ -13,7 +13,10 @@ import {
   type SessionStateEncoded,
   ViewerEventPayload,
 } from "./domain";
-import { compileCanonicalSportsPlan } from "./canonical-sports";
+import {
+  canonicalBuildIdempotencyKey,
+  compileCanonicalSportsPlan,
+} from "./canonical-sports";
 import {
   generationQueueLive,
   idGeneratorLive,
@@ -151,10 +154,10 @@ export class SessionDurableObject extends DurableObject<Env> {
         branchId: plan.branchId,
         clipId: plan.clipId,
         jobId: yield* ids.next,
-        idempotencyKey:
-          decoded.attempt === 1
-            ? `canonical:${decoded.slot}:v1`
-            : `canonical:${decoded.slot}:v1:retry:2`,
+        idempotencyKey: canonicalBuildIdempotencyKey(
+          decoded.slot,
+          decoded.attempt,
+        ),
         deadlineAt: now + 15 * 60_000,
         plan,
       });

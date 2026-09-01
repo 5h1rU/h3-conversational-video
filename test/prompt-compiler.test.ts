@@ -57,4 +57,38 @@ describe("deterministic generation plan compiler", () => {
     expect(first.resolvedPrompt).toContain("at most sixteen spoken words");
     expect(first.resolvedPrompt).toContain("Never accelerate");
   });
+
+  it("selects the exact immutable bridge frame for later sports anchors", () => {
+    const state = Schema.decodeUnknownSync(SessionState)({
+      sessionId: "session-late-anchor",
+      showId: "signal-room-sports",
+      episodeId: "sports-news-2026-08-31",
+      showVersion: "2026-08-31.sports.v2",
+      stateVersion: 1,
+      canonicalPlayheadAnchor: "anchor-007",
+      bufferDepthMs: 20_000,
+      targetBufferMs: 20_000,
+      branchPhase: "planned",
+      branchId: "branch-late-anchor",
+      branchQuestion: "What happened in Formula One?",
+      rejoinAnchor: "anchor-008",
+      branchArtifactId: null,
+      playlistRevision: 1,
+      deadlineAt: 9_999_999_999_999,
+    });
+    const plan = compileGenerationPlan({
+      branchId: Schema.decodeUnknownSync(BranchId)("branch-late-anchor"),
+      clipId: Schema.decodeUnknownSync(ClipId)("clip-late-anchor"),
+      question: "What happened in Formula One?",
+      state,
+      branchStartAnchor: "anchor-007",
+      rejoinAnchor: "anchor-008",
+      continuityBaseUrl: new URL("https://prototype.example"),
+      currentAnchor: "anchor-007",
+    });
+    expect(plan.continuityStartImageUrl?.pathname).toBe(
+      "/v1/canonical/assets/alcaraz-return-context-end.png",
+    );
+    expect(plan.continuityEndImageUrl).toEqual(plan.continuityStartImageUrl);
+  });
 });

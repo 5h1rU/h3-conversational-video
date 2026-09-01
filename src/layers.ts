@@ -1146,15 +1146,21 @@ export function canonicalCatalogLive(
       publish: (publication) =>
         Effect.tryPromise({
           try: async () => {
-            if (publication.clips.length !== 4)
-              throw new Error("Canonical publication requires four clips");
+            if (publication.clips.length !== 10)
+              throw new Error("Canonical publication requires ten clips");
             await db.batch([
               db
                 .prepare(
                   `INSERT INTO canonical_episodes
                    (episode_id, show_id, show_version, status, continuity_contract_version, continuity_contract_json, created_at, published_at)
                    VALUES (?, ?, ?, 'BUILDING', ?, ?, ?, NULL)
-                   ON CONFLICT(episode_id) DO NOTHING`,
+                   ON CONFLICT(episode_id) DO UPDATE SET
+                     show_id = excluded.show_id,
+                     show_version = excluded.show_version,
+                     status = 'BUILDING',
+                     continuity_contract_version = excluded.continuity_contract_version,
+                     continuity_contract_json = excluded.continuity_contract_json,
+                     published_at = NULL`,
                 )
                 .bind(
                   publication.episodeId,
@@ -1164,6 +1170,9 @@ export function canonicalCatalogLive(
                   publication.continuityContractJson,
                   publication.publishedAt,
                 ),
+              db
+                .prepare("DELETE FROM canonical_clips WHERE episode_id = ?")
+                .bind(publication.episodeId),
               ...publication.clips.map((clip) =>
                 db
                   .prepare(
@@ -1172,7 +1181,22 @@ export function canonicalCatalogLive(
                       provider_request_id, generation_job_id, prompt_compiler_version, continuity_contract_version,
                       continuity_input_key, validation_status, validation_evidence_json, created_at)
                      VALUES (?, ?, ?, ?, ?, ?, 5000, ?, ?, ?, ?, 'h3-sports-compiler/1', ?, ?, 'APPROVED', ?, ?)
-                     ON CONFLICT(episode_id, ordinal) DO NOTHING`,
+                     ON CONFLICT(episode_id, ordinal) DO UPDATE SET
+                       clip_id = excluded.clip_id,
+                       title = excluded.title,
+                       speaker = excluded.speaker,
+                       anchor = excluded.anchor,
+                       duration_ms = excluded.duration_ms,
+                       artifact_id = excluded.artifact_id,
+                       manifest_key = excluded.manifest_key,
+                       provider_request_id = excluded.provider_request_id,
+                       generation_job_id = excluded.generation_job_id,
+                       prompt_compiler_version = excluded.prompt_compiler_version,
+                       continuity_contract_version = excluded.continuity_contract_version,
+                       continuity_input_key = excluded.continuity_input_key,
+                       validation_status = excluded.validation_status,
+                       validation_evidence_json = excluded.validation_evidence_json,
+                       created_at = excluded.created_at`,
                   )
                   .bind(
                     publication.episodeId,
@@ -1197,7 +1221,7 @@ export function canonicalCatalogLive(
                    SET status = 'PUBLISHED', published_at = ?
                    WHERE episode_id = ?
                      AND (SELECT COUNT(*) FROM canonical_clips
-                          WHERE episode_id = ? AND validation_status = 'APPROVED') = 4`,
+                          WHERE episode_id = ? AND validation_status = 'APPROVED') = 10`,
                 )
                 .bind(
                   publication.publishedAt,
@@ -1217,7 +1241,7 @@ export function canonicalCatalogLive(
             if (
               !result ||
               result.status !== "PUBLISHED" ||
-              result.clip_count !== 4
+              result.clip_count !== 10
             )
               throw new Error("Canonical episode did not publish atomically");
             return { published: true, clipCount: result.clip_count };

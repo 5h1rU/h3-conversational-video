@@ -91,6 +91,31 @@ describe("grounded branch planning", () => {
     });
   });
 
+  it("never rewinds a late viewer back to an earlier story anchor", () => {
+    const { answer, job, state } = fixture();
+    const lateState = Schema.decodeUnknownSync(SessionState)({
+      ...state,
+      canonicalPlayheadAnchor: "anchor-007",
+    });
+    const lateJob = new BranchGenerationJob({
+      ...job,
+      plan: compileGenerationPlan({
+        branchId: job.branchId,
+        clipId: job.clipId,
+        question: job.plan.session.question,
+        state: lateState,
+        branchStartAnchor: "anchor-007",
+        rejoinAnchor: "anchor-008",
+        continuityBaseUrl: new URL("https://prototype.example"),
+        currentAnchor: "anchor-007",
+      }),
+    });
+    expect(placementForGroundedAnswer(lateJob, answer)).toEqual({
+      branchStartAnchor: "anchor-007",
+      rejoinAnchor: "anchor-008",
+    });
+  });
+
   it("compiles exact grounded dialogue before changing Session DO placement", async () => {
     const { answer, job, state } = fixture();
     const recorded: string[] = [];

@@ -23,11 +23,13 @@ export const planBranch = Effect.fn("planBranch")(
         input.event.playbackPositionMs / CLIP_DURATION_MS,
       );
       const isSportsEpisode = input.state.episodeId === SPORTS_EPISODE_ID;
+      const sportsPlaybackIndex = Math.max(0, Math.min(8, playbackIndex));
+      const sportsStartIndex = Math.max(1, sportsPlaybackIndex);
       const branchStartAnchor = isSportsEpisode
-        ? anchorForIndex(1)
+        ? anchorForIndex(sportsStartIndex)
         : anchorForIndex(playbackIndex);
       const rejoinAnchor = isSportsEpisode
-        ? anchorForIndex(2)
+        ? anchorForIndex(sportsStartIndex + 1)
         : anchorForIndex(Math.min(143, playbackIndex + 4));
       return compileGenerationPlan({
         branchId: input.branchId,

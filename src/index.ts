@@ -75,7 +75,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     });
   }
   const canonicalAssetMatch = url.pathname.match(
-    /^\/v1\/canonical\/assets\/(sports-news-visual-bible-v1|messi-headline-end|messi-context-end|us-open-reentry-end)\.png$/,
+    /^\/v1\/canonical\/assets\/(sports-news-visual-bible-v1|messi-headline-end|messi-context-end|us-open-reentry-end|us-open-continuation-end|djokovic-upset-headline-end|djokovic-upset-context-end|alcaraz-return-headline-end|alcaraz-return-context-end|dutch-gp-headline-end|dutch-gp-context-end)\.png$/,
   );
   if (
     (request.method === "GET" || request.method === "HEAD") &&
@@ -110,7 +110,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     return new Response(object.body, { headers });
   }
   const canonicalBuildMatch = url.pathname.match(
-    /^\/v1\/admin\/canonical\/build\/(messi-headline|messi-context|us-open-reentry|us-open-continuation)$/,
+    /^\/v1\/admin\/canonical\/build\/(messi-headline|messi-context|us-open-reentry|us-open-continuation|djokovic-upset-headline|djokovic-upset-context|alcaraz-return-headline|alcaraz-return-context|dutch-gp-headline|dutch-gp-context)$/,
   );
   if (request.method === "POST" && canonicalBuildMatch?.[1]) {
     if (!(await canonicalAdminAuthorized(request, env)))

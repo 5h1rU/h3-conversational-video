@@ -24,21 +24,25 @@ export function placementForGroundedAnswer(
       rejoinAnchor: job.plan.session.rejoinAnchor,
     };
   }
-  if (answer.topic === "messi") {
+  const currentIndex = Math.max(
+    0,
+    Math.min(8, Number(job.plan.session.currentAnchor.slice(-3))),
+  );
+  if (answer.topic === "messi" && currentIndex <= 1) {
     return {
       branchStartAnchor: anchorForIndex(1),
       rejoinAnchor: anchorForIndex(2),
     };
   }
-  if (answer.topic === "us-open") {
+  if (answer.topic === "us-open" && currentIndex <= 2) {
     return {
       branchStartAnchor: anchorForIndex(2),
       rejoinAnchor: anchorForIndex(3),
     };
   }
   return {
-    branchStartAnchor: job.plan.session.branchStartAnchor,
-    rejoinAnchor: job.plan.session.rejoinAnchor,
+    branchStartAnchor: anchorForIndex(currentIndex),
+    rejoinAnchor: anchorForIndex(currentIndex + 1),
   };
 }
 

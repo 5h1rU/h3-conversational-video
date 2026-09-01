@@ -17,10 +17,26 @@ function deterministicSeed(value: string): number {
 }
 
 function continuityBridgePath(branchStartAnchor: string): string {
-  if (branchStartAnchor === "anchor-002") {
-    return "/v1/canonical/assets/us-open-reentry-end.png";
+  switch (branchStartAnchor) {
+    case "anchor-000":
+      return "/v1/canonical/assets/messi-headline-end.png";
+    case "anchor-002":
+      return "/v1/canonical/assets/us-open-reentry-end.png";
+    case "anchor-003":
+      return "/v1/canonical/assets/us-open-continuation-end.png";
+    case "anchor-004":
+      return "/v1/canonical/assets/djokovic-upset-headline-end.png";
+    case "anchor-005":
+      return "/v1/canonical/assets/djokovic-upset-context-end.png";
+    case "anchor-006":
+      return "/v1/canonical/assets/alcaraz-return-headline-end.png";
+    case "anchor-007":
+      return "/v1/canonical/assets/alcaraz-return-context-end.png";
+    case "anchor-008":
+      return "/v1/canonical/assets/dutch-gp-headline-end.png";
+    default:
+      return "/v1/canonical/assets/messi-context-end.png";
   }
-  return "/v1/canonical/assets/messi-context-end.png";
 }
 
 export function compileGenerationPlan(input: {

@@ -8,7 +8,7 @@ import {
 
 export const SPORTS_SHOW_ID = "signal-room-sports";
 export const SPORTS_EPISODE_ID = "sports-news-2026-08-31";
-export const SPORTS_SHOW_VERSION = "2026-08-31.sports.v1";
+export const SPORTS_SHOW_VERSION = "2026-08-31.sports.v2";
 export const SPORTS_CONTINUITY_VERSION = "sports-news-continuity/1";
 
 export const SPORTS_VISUAL_BIBLE = {
@@ -75,6 +75,78 @@ export const SPORTS_CANONICAL_SPECS = [
     action:
       "Theo completes the US Open item while Mara listens; finish in a neutral two-shot hold.",
   },
+  {
+    slot: "djokovic-upset-headline",
+    ordinal: 40,
+    clipId: "canonical-sports-djokovic-upset-headline",
+    title: "Navone stuns Djokovic in New York",
+    speaker: "Mara Vale",
+    anchor: "anchor-004",
+    dialogue:
+      "Mara says, “Mariano Navone stunned Novak Djokovic in the US Open first round.”",
+    action:
+      "Mara introduces the result directly to camera; Theo listens without interrupting and holds the established desk position.",
+  },
+  {
+    slot: "djokovic-upset-context",
+    ordinal: 50,
+    clipId: "canonical-sports-djokovic-upset-context",
+    title: "Djokovic's earliest Slam exit since 2006",
+    speaker: "Theo Reyes",
+    anchor: "anchor-005",
+    dialogue:
+      "Theo says, “Navone won in five sets; Djokovic’s earliest Slam exit since 2006.”",
+    action:
+      "Theo gives the concise context while Mara listens; both settle naturally into the shared two-shot at the end.",
+  },
+  {
+    slot: "alcaraz-return-headline",
+    ordinal: 60,
+    clipId: "canonical-sports-alcaraz-return-headline",
+    title: "Alcaraz returns with a win",
+    speaker: "Mara Vale",
+    anchor: "anchor-006",
+    dialogue:
+      "Mara says, “Carlos Alcaraz returned from a four-month wrist layoff with a win.”",
+    action:
+      "Mara opens the next tennis headline with restrained energy; Theo turns slightly toward her, preserving the same camera axis.",
+  },
+  {
+    slot: "alcaraz-return-context",
+    ordinal: 70,
+    clipId: "canonical-sports-alcaraz-return-context",
+    title: "A straight-sets return for Alcaraz",
+    speaker: "Theo Reyes",
+    anchor: "anchor-007",
+    dialogue:
+      "Theo says, “He beat Roman Safiullin 6-4, 6-4, 6-4 and said his body felt great.”",
+    action:
+      "Theo delivers the score and health update calmly; Mara acknowledges with one subtle nod and returns to a neutral hold.",
+  },
+  {
+    slot: "dutch-gp-headline",
+    ordinal: 80,
+    clipId: "canonical-sports-dutch-gp-headline",
+    title: "Norris wins at Zandvoort",
+    speaker: "Mara Vale",
+    anchor: "anchor-008",
+    dialogue:
+      "Mara says, “Lando Norris won the Dutch Grand Prix after Max Verstappen crashed early.”",
+    action:
+      "Mara pivots cleanly to Formula One while Theo remains composed; no footage, graphics, or camera move appears.",
+  },
+  {
+    slot: "dutch-gp-context",
+    ordinal: 90,
+    clipId: "canonical-sports-dutch-gp-context",
+    title: "Antonelli and Russell complete the podium",
+    speaker: "Theo Reyes",
+    anchor: "anchor-009",
+    dialogue:
+      "Theo says, “Norris finished eleven seconds ahead of Kimi Antonelli, with George Russell third.”",
+    action:
+      "Theo closes the roundup; Mara listens, then both presenters settle into the same centered endpoint pose for a clean loop or continuation.",
+  },
 ] as const;
 
 export type SportsCanonicalSlot =
@@ -84,6 +156,12 @@ export const SportsCanonicalSlotSchema = Schema.Literals([
   "messi-context",
   "us-open-reentry",
   "us-open-continuation",
+  "djokovic-upset-headline",
+  "djokovic-upset-context",
+  "alcaraz-return-headline",
+  "alcaraz-return-context",
+  "dutch-gp-headline",
+  "dutch-gp-context",
 ]);
 
 export function sportsCanonicalSpec(slot: SportsCanonicalSlot) {
@@ -149,7 +227,7 @@ export function compileCanonicalSportsPlan(
     `[DIALOGUE] ${shot.dialogue}`,
     `[ACTION] ${shot.framing} ${shot.motion}`,
     `[CONTINUITY] Begin exactly from the supplied image. ${shot.terminalState}`,
-    `[TRUTHFULNESS] Use only the quoted sports-news wording. Do not depict Messi, Sabalenka, Osorio, a match, a stadium, highlights, logos, or supporting footage.`,
+    `[TRUTHFULNESS] Use only the quoted sports-news wording. Do not depict any named athlete, match, race, stadium, circuit, highlights, logos, or supporting footage.`,
     "One continuous five-second 16:9 newsroom shot with synchronized speech.",
   ].join("\n");
 
@@ -178,8 +256,23 @@ export function continuityAssetPath(slot: SportsCanonicalSlot): string {
     "messi-context": "messi-headline-end.png",
     "us-open-reentry": "messi-context-end.png",
     "us-open-continuation": "us-open-reentry-end.png",
+    "djokovic-upset-headline": "us-open-continuation-end.png",
+    "djokovic-upset-context": "djokovic-upset-headline-end.png",
+    "alcaraz-return-headline": "djokovic-upset-context-end.png",
+    "alcaraz-return-context": "alcaraz-return-headline-end.png",
+    "dutch-gp-headline": "alcaraz-return-context-end.png",
+    "dutch-gp-context": "dutch-gp-headline-end.png",
   } as const;
   return `/v1/canonical/assets/${preceding[slot]}`;
+}
+
+export function canonicalBuildIdempotencyKey(
+  slot: SportsCanonicalSlot,
+  attempt: 1 | 2,
+): string {
+  if (slot === "messi-headline" && attempt === 2)
+    return "canonical:messi-headline:v1:retry:2";
+  return `canonical:${slot}:v1${attempt === 2 ? ":retry:2" : ""}`;
 }
 
 export function continuityAssetKey(slot: SportsCanonicalSlot): string {
