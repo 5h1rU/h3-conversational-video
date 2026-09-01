@@ -39,7 +39,7 @@ export function compileGenerationPlan(input: {
     primary: "Mara Vale" as const,
     secondary: "Theo Reyes" as const,
     speakingRule:
-      "Treat the viewer as part of the live program. Choose natural wording for the exact question: briefly acknowledge that a viewer or the audience is asking about its subject, answer in one concise sentence, and close with an organic handoff. Do not use a canned receipt phrase, repeat the whole question, or invent facts.",
+      "Treat the viewer as part of the live program. Use at most sixteen spoken words total: a brief subject-specific acknowledgment, one concise factual answer, and a very short organic handoff. Speak at a calm natural news cadence. Never accelerate, time-compress, or rush speech. Do not use a canned receipt phrase, repeat the whole question, or invent facts.",
   };
   const world = {
     show: "The Signal Room" as const,
@@ -76,9 +76,9 @@ export function compileGenerationPlan(input: {
     groundedAnswer
       ? `[GROUNDING] Speak the supplied ingress, answer, and egress exactly as written. The answer was grounded at ${groundedAnswer.informationAsOf} with ${groundedAnswer.sources.length} validated source(s). Do not add, remove, paraphrase, or invent facts.`
       : "[GROUNDING] This draft is unresolved and must not be submitted to a live video provider.",
-    "[TIMING] Ingress 0.0-2.0s; direct answer 2.0-12.0s; egress and exact pose restoration 12.0-15.0s. One continuous locked two-shot, no cut or camera move. Use the answer window for two or three natural sentences, not rushed delivery.",
+    "[TIMING] Ingress 0.0-1.2s; direct answer 1.2-5.2s; egress 5.2-6.2s; silent exact-pose restoration 6.2-7.0s. Use at most sixteen spoken words total at a calm 135-150 words-per-minute news cadence. Never accelerate, time-stretch, compress, or rush the voice to fit. One continuous locked two-shot, no cut or camera move.",
     `[CONTINUITY] The supplied first and last images are the exact shared endpoint frame at ${session.branchStartAnchor}, immediately before ${session.rejoinAnchor}. Begin from it and restore it exactly before the canonical program resumes. Preserve faces, wardrobe, studio, voices, room tone, camera axis, exposure, and color grade throughout.`,
-    "Fifteen seconds, 16:9, coherent audiovisual output, safety checker enabled.",
+    "Seven seconds, 16:9, coherent audiovisual output, safety checker enabled.",
   ].join("\n");
 
   const bridgeKeyframe = new URL(
@@ -87,10 +87,10 @@ export function compileGenerationPlan(input: {
   );
 
   return new GenerationPlan({
-    compilerVersion: groundedAnswer ? "h3-compiler/4" : "h3-compiler/3",
+    compilerVersion: groundedAnswer ? "h3-compiler/5" : "h3-compiler/3",
     clipId: input.clipId,
     branchId: input.branchId,
-    durationSeconds: 15,
+    durationSeconds: 7,
     seed: deterministicSeed(
       `${input.branchId}:${input.question}:${input.rejoinAnchor}`,
     ),

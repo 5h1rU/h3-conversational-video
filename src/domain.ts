@@ -3,12 +3,12 @@ import { Schema } from "effect";
 export const BUFFER_TARGET_MS = 20_000;
 export const BRANCH_GENERATION_DEADLINE_MS = 120_000;
 export const CLIP_DURATION_MS = 5_000;
-export const BRANCH_CLIP_DURATION_MS = 15_000;
+export const BRANCH_CLIP_DURATION_MS = 7_000;
 export const CANONICAL_CLIP_COUNT = 144;
 
-export const VideoDurationSeconds = Schema.Literals([5, 15]);
+export const VideoDurationSeconds = Schema.Literals([5, 7]);
 export type VideoDurationSeconds = typeof VideoDurationSeconds.Type;
-export const MediaDurationMs = Schema.Literals([5_000, 15_000]);
+export const MediaDurationMs = Schema.Literals([5_000, 7_000]);
 export type MediaDurationMs = typeof MediaDurationMs.Type;
 
 export const SessionId = Schema.NonEmptyString.pipe(Schema.brand("SessionId"));
@@ -168,6 +168,7 @@ export class GenerationPlan extends Schema.Class<GenerationPlan>(
     "h3-compiler/2",
     "h3-compiler/3",
     "h3-compiler/4",
+    "h3-compiler/5",
     "h3-sports-compiler/1",
   ]),
   clipId: ClipId,

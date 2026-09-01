@@ -25,8 +25,8 @@ export const FAL_H3_MAX_COST_FIRST_PROFILE_V1 = Schema.decodeUnknownSync(
 });
 
 export const FalH3MaxConversationalBranchProfile = Schema.Struct({
-  version: Schema.Literal("h3-max-conversational-branch/2"),
-  durationSeconds: Schema.Literal(15),
+  version: Schema.Literal("h3-max-conversational-branch/3"),
+  durationSeconds: Schema.Literal(7),
   resolution: Schema.Literal("480P"),
   promptExpansionMode: Schema.Literal("balanced"),
   aspectRatio: Schema.Literal("16:9"),
@@ -34,10 +34,10 @@ export const FalH3MaxConversationalBranchProfile = Schema.Struct({
   syncModeEnabled: Schema.Literal(false),
 });
 
-export const FAL_H3_MAX_CONVERSATIONAL_BRANCH_PROFILE_V2 =
+export const FAL_H3_MAX_CONVERSATIONAL_BRANCH_PROFILE_V3 =
   Schema.decodeUnknownSync(FalH3MaxConversationalBranchProfile)({
-    version: "h3-max-conversational-branch/2",
-    durationSeconds: 15,
+    version: "h3-max-conversational-branch/3",
+    durationSeconds: 7,
     resolution: "480P",
     promptExpansionMode: "balanced",
     aspectRatio: "16:9",
@@ -49,7 +49,7 @@ export class FalH3MaxRequest extends Schema.Class<FalH3MaxRequest>(
   "h3/FalH3MaxRequest",
 )({
   prompt: Schema.String,
-  duration: Schema.Literals([5, 15]),
+  duration: Schema.Literals([5, 7]),
   resolution: Schema.Literal("480P"),
   seed: Schema.Int,
   enable_safety_checker: Schema.Literal(true),
@@ -65,8 +65,8 @@ export function compileFalH3MaxRequest(
   plan: GenerationPlan,
 ): typeof FalH3MaxRequest.Encoded {
   const profile =
-    plan.durationSeconds === 15
-      ? FAL_H3_MAX_CONVERSATIONAL_BRANCH_PROFILE_V2
+    plan.durationSeconds === 7
+      ? FAL_H3_MAX_CONVERSATIONAL_BRANCH_PROFILE_V3
       : FAL_H3_MAX_COST_FIRST_PROFILE_V1;
   return encodeFalH3MaxRequest(
     new FalH3MaxRequest({

@@ -59,7 +59,7 @@ describe("Session Durable Object ordering authority", () => {
       manifestKey: `artifacts/sha256/${"f".repeat(64)}/manifest.v1.json`,
       contentType: "video/mp4",
       size: 1024,
-      durationMs: 15_000 as const,
+      durationMs: 7_000 as const,
     };
     await stub.markGenerating(decodedBranchId);
     await stub.publishBranch(decodedBranchId, artifact);
@@ -80,7 +80,7 @@ describe("Session Durable Object ordering authority", () => {
       "canonical",
       "canonical",
     ]);
-    expect(playlist.entries[2]?.durationMs).toBe(15_000);
+    expect(playlist.entries[2]?.durationMs).toBe(7_000);
     expect(
       await stub.ownsArtifact(
         canonicalEntries[0]!.mediaUrl.split("/media/")[1]!,
@@ -100,7 +100,7 @@ describe("Session Durable Object ordering authority", () => {
           entries: [
             {
               beatKinds: ["ingress", "answer", "egress"],
-              durationMs: 15_000,
+              durationMs: 7_000,
             },
           ],
           rejoinAnchor: "anchor-002",

@@ -109,7 +109,7 @@ export const groundBranch = Effect.fn("groundBranch")(function* (
     model: result.model,
     plan: result.plan,
     gatewayLogId: result.gatewayLogId,
-    resolvedPromptCompilerVersion: "h3-compiler/4",
+    resolvedPromptCompilerVersion: "h3-compiler/5",
     desiredOrdinal,
     at,
   });

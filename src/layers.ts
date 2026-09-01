@@ -581,10 +581,9 @@ export function answerPlannerLive(
                   canAnswer: true,
                   topic,
                   confidence: "high",
-                  answer:
-                    "This is a deterministic local answer used only for development.",
-                  ingress: "Let’s take that question in context.",
-                  egress: "With that clarified, we can continue the story.",
+                  answer: "This local fixture keeps testing deterministic.",
+                  ingress: "On that question—",
+                  egress: "Back to the story.",
                   informationAsOf: input.requestedAt,
                   sources: [
                     new GroundingSource({
@@ -922,7 +921,7 @@ export function generationProviderLive(
                   branchId: job.branchId,
                   body,
                   contentType: "image/svg+xml" as const,
-                  durationMs: job.plan.durationSeconds === 15 ? 15_000 : 5_000,
+                  durationMs: job.plan.durationSeconds === 7 ? 7_000 : 5_000,
                   providerRequestId: requestId,
                   promptCompilerVersion: job.plan.compilerVersion,
                 },
@@ -1336,6 +1335,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
                 | "h3-compiler/2"
                 | "h3-compiler/3"
                 | "h3-compiler/4"
+                | "h3-compiler/5"
                 | "h3-sports-compiler/1";
               duration_ms: number;
             }>();
@@ -1352,6 +1352,7 @@ export function auditLedgerLive(db: D1Database): Layer.Layer<AuditLedger> {
                 "h3-compiler/2",
                 "h3-compiler/3",
                 "h3-compiler/4",
+                "h3-compiler/5",
                 "h3-sports-compiler/1",
               ]),
               durationMs: MediaDurationMs,

@@ -50,7 +50,7 @@ Queue delivery and provider completion may happen more than once or out of order
 
 `src/services.ts` contains contracts and tagged errors. `src/layers.ts` contains live adapter layers. `src/use-cases/` contains named orchestration. `src/domain.ts` is the single schema and branded-ID boundary. `src/index.ts` and `src/session-do.ts` are delivery adapters/public facade.
 
-`src/fal-provider.ts` is the replaceable provider request boundary. Its schema-checked `h3-max-cost-first/1` profile keeps reusable canonical clips at five seconds, while `h3-max-conversational-branch/2` uses H3 Max's supported 15-second maximum for personalized answers. Both remain `480P`, balanced prompt expansion, and safety checked. Image-to-video requests use the input image's aspect ratio per fal's contract. Sync/base64 response modes are intentionally absent so live work stays on the asynchronous queue/webhook path. Pricing is deliberately not part of this runtime contract because fal rates are volatile and must be checked before paid tests.
+`src/fal-provider.ts` is the replaceable provider request boundary. Its schema-checked `h3-max-cost-first/1` profile keeps reusable canonical clips at five seconds, while `h3-max-conversational-branch/3` uses seven seconds for personalized answers. Both remain `480P`, balanced prompt expansion, and safety checked. Image-to-video requests use the input image's aspect ratio per fal's contract. Sync/base64 response modes are intentionally absent so live work stays on the asynchronous queue/webhook path. Pricing is deliberately not part of this runtime contract because fal rates are volatile and must be checked before paid tests.
 
 `src/canonical-sports.ts` owns the versioned sports content and `sports-news-continuity/1` contract. It fixes all audiovisual invariants and compiles four per-clip specifications without exposing episode orchestration to fal. D1 owns canonical build/audit records and approval evidence; R2 owns immutable continuity images and media manifests; the Session Durable Object snapshots only an approved episode and remains the sole live ordering authority.
 
@@ -74,7 +74,7 @@ idle -> planned -> generating -> ready -> idle (after rejoin position)
                   +-> failed -> planned
 ```
 
-Initial planning reserves one branch without letting the Queue decide its final position. Grounding classifies the episode topic and the Durable Object atomically places the still-current planned branch between adjacent semantic anchors: Messi answers follow Messi context and rejoin at the first US Open headline; US Open answers follow that headline and rejoin at its continuation. `planned` and `generating` block a second branch. The conversational branch encodes exact grounded ingress, answer, and egress as beats in one 15-second artifact; publication stores that duration in D1 and the immutable R2 manifest, then inserts the ordered package once before the anchor. `ready` remains active until playback passes the rejoin anchor. A failed branch never changes `playlistRevision`; a committed branch changes it exactly once.
+Initial planning reserves one branch without letting the Queue decide its final position. Grounding classifies the episode topic and the Durable Object atomically places the still-current planned branch between adjacent semantic anchors: Messi answers follow Messi context and rejoin at the first US Open headline; US Open answers follow that headline and rejoin at its continuation. `planned` and `generating` block a second branch. The conversational branch encodes a schema-limited sixteen-word ingress, answer, and egress package as one seven-second artifact; publication stores that duration in D1 and the immutable R2 manifest, then inserts the ordered package once before the anchor. `ready` remains active until playback passes the rejoin anchor. A failed branch never changes `playlistRevision`; a committed branch changes it exactly once.
 
 For this episode the ingress boundary is also fixed: a question asked anywhere during the Messi portion waits until the end of Messi context. The branch image-to-video request uses that validated endpoint as both its first keyframe and its required last keyframe. This gives the model the viewer's exact question plus explicit ingress, answer, and egress timing, while forcing the final head direction, eye lines, hands, framing, lighting, and expression back to the pose from which the independent US Open headline begins. The Durable Object publishes the package between those two canonical entries; fal receives only the resolved clip specification and knows nothing about timeline orchestration.
 
@@ -82,7 +82,7 @@ The browser advances only on the active element's identity-checked `ended` event
 
 ## Artifact commit boundary
 
-1. Validate the schema-authorized five-second canonical or 15-second branch contract, content type, bounded size, and MP4 signature (real provider).
+1. Validate the schema-authorized five-second canonical or seven-second branch contract, content type, bounded size, and MP4 signature (real provider).
 2. Compute SHA-256 and derive the immutable media key.
 3. Conditionally put media with checksum and immutable HTTP metadata.
 4. Read the object metadata back and verify the committed byte count.

@@ -141,7 +141,7 @@ describe("grounded branch planning", () => {
         ),
       ),
     );
-    expect(result.plan.compilerVersion).toBe("h3-compiler/4");
+    expect(result.plan.compilerVersion).toBe("h3-compiler/5");
     expect(result.plan.grounding?.answer).toBe(answer.answer);
     expect(result.plan.resolvedPrompt).toContain(answer.ingress);
     expect(result.plan.resolvedPrompt).toContain(answer.answer);
@@ -154,7 +154,7 @@ describe("grounded branch planning", () => {
       result.plan.continuityStartImageUrl,
     );
     expect(recorded).toEqual([
-      "ledger:h3-compiler/4:21",
+      "ledger:h3-compiler/5:21",
       "place:anchor-002:anchor-003",
     ]);
   });

@@ -18,9 +18,9 @@ const content = {
   canAnswer: true,
   topic: "us-open",
   confidence: "high",
-  answer: "Sabalenka won the match in straight sets, 6-3, 6-2.",
-  ingress: "On that U.S. Open question, here is the verified score.",
-  egress: "That brings us naturally back to her title defense.",
+  answer: "Sabalenka won 6-3, 6-2.",
+  ingress: "On that score—",
+  egress: "Back to her defense.",
   sources: [
     {
       title: "Official match report",
@@ -150,6 +150,21 @@ describe("Moonshot Kimi grounded-answer boundary", () => {
         input.requestedAt,
       ),
     ).toThrow();
+  });
+
+  it("rejects dialogue that would force rushed seven-second speech", () => {
+    expect(() =>
+      decodeMoonshotGroundedAnswerResponse(
+        finalResponse({
+          ...content,
+          ingress: "A viewer is asking about that exact score.",
+          answer:
+            "Sabalenka won this match in straight sets by a score of 6-3, 6-2.",
+          egress: "Now we return to the title-defense story.",
+        }),
+        input.requestedAt,
+      ),
+    ).toThrow("sixteen spoken words");
   });
 
   it("bounds external response bodies before JSON decoding", async () => {
